@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz Taylor Swift</title>
+<style>
+  :root {
+    --bg: #fdf4f8; --card: #ffffff; --text: #2a1830; --muted: #7a6680;
+    --accent: #b5338a; --accent-2: #7b4fd6; --ok: #1f9d55; --bad: #d64545;
+    --border: #ecd9e6; --opt: #faf2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #170f1c; --card: #231829; --text: #f6e9f3; --muted: #b9a3bf;
+      --accent: #f07cc6; --accent-2: #a98bff; --ok: #4ccf86; --bad: #ff7a7a;
+      --border: #3a2a42; --opt: #2c1f33;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #170f1c; --card: #231829; --text: #f6e9f3; --muted: #b9a3bf;
+    --accent: #f07cc6; --accent-2: #a98bff; --ok: #4ccf86; --bad: #ff7a7a;
+    --border: #3a2a42; --opt: #2c1f33;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: 24px 16px;
+  }
+  main { width: 100%; max-width: 560px; }
+  .back { display: inline-block; margin-bottom: 12px; font-weight: 700; font-size: .9rem; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--accent); }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; text-align: center;
+       background: linear-gradient(90deg, var(--accent), var(--accent-2));
+       -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { text-align: center; color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+          padding: 22px; box-shadow: 0 8px 30px rgba(120, 40, 100, .08); }
+  .top { display: flex; justify-content: space-between; color: var(--muted); font-size: .9rem; margin-bottom: 10px; }
+  .bar { height: 6px; background: var(--opt); border-radius: 99px; overflow: hidden; margin-bottom: 18px; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .3s; }
+  .q { font-size: 1.2rem; font-weight: 600; margin: 0 0 16px; line-height: 1.4; }
+  .opts { display: grid; gap: 10px; }
+  .opt { text-align: left; font: inherit; color: var(--text); background: var(--opt);
+         border: 2px solid var(--border); border-radius: 12px; padding: 13px 14px; cursor: pointer;
+         transition: transform .1s, border-color .15s; }
+  .opt:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+  .opt:disabled { cursor: default; }
+  .opt.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 15%, var(--opt)); }
+  .opt.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 15%, var(--opt)); }
+  .fact { margin-top: 14px; color: var(--muted); font-size: .95rem; min-height: 1.2em; }
+  .btn { display: block; width: 100%; margin-top: 16px; font: inherit; font-weight: 600; color: #fff;
+         background: linear-gradient(90deg, var(--accent), var(--accent-2)); border: 0;
+         border-radius: 12px; padding: 14px; cursor: pointer; }
+  .btn[hidden] { display: none; }
+  .center { text-align: center; }
+  .big { font-size: 3rem; margin: 8px 0; }
+  .score { font-size: 1.5rem; font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="../">← Mais jogos</a>
+  <h1>✨ Quiz Taylor Swift ✨</h1>
+  <p class="sub">Você é uma Swiftie de verdade? 10 perguntas por rodada.</p>
+
+  <div class="card" id="start">
+    <div class="center">
+      <div class="big">🎤</div>
+      <p>Responda às perguntas sobre a vida, os álbuns e as eras da Taylor. Cada rodada sorteia perguntas diferentes!</p>
+      <button class="btn" id="go">Começar</button>
+    </div>
+  </div>
+
+  <div class="card" id="game" hidden>
+    <div class="top"><span id="count"></span><span id="pts"></span></div>
+    <div class="bar"><div id="prog"></div></div>
+    <p class="q" id="question"></p>
+    <div class="opts" id="options"></div>
+    <p class="fact" id="fact"></p>
+    <button class="btn" id="next" hidden>Próxima</button>
+  </div>
+
+  <div class="card center" id="end" hidden>
+    <div class="big" id="emoji"></div>
+    <p class="score" id="final"></p>
+    <p id="verdict"></p>
+    <button class="btn" id="again">Jogar de novo</button>
+  </div>
+</main>
+
+<script>
+const QUESTIONS = [
+  { q: "Em que ano Taylor Swift nasceu?", o: ["1987", "1989", "1990", "1991"], a: 1,
+    f: "Ela nasceu em 13 de dezembro de 1989 — e deu o nome do ano a um dos seus álbuns." },
+  { q: "Qual é o número da sorte da Taylor?", o: ["7", "3", "13", "22"], a: 2,
+    f: "O 13! Ela nasceu num dia 13 e costumava desenhar o número na mão nos shows." },
+  { q: "Como se chama o primeiro álbum de estúdio dela, lançado em 2006?", o: ["Fearless", "Taylor Swift", "Speak Now", "Tim McGraw"], a: 1,
+    f: "O álbum de estreia leva o próprio nome dela. \"Tim McGraw\" foi o primeiro single." },
+  { q: "Em qual estado americano Taylor nasceu?", o: ["Tennessee", "Texas", "Pensilvânia", "Nova York"], a: 2,
+    f: "Ela nasceu na Pensilvânia e cresceu numa fazenda de árvores de Natal antes de se mudar para Nashville." },
+  { q: "\"Love Story\" faz parte de qual álbum?", o: ["Fearless", "Red", "Speak Now", "Lover"], a: 0,
+    f: "Fearless (2008), que também tem \"You Belong With Me\"." },
+  { q: "Qual álbum tem \"Shake It Off\" e \"Blank Space\"?", o: ["reputation", "Red", "1989", "Lover"], a: 2,
+    f: "1989 (2014) marcou a virada definitiva dela do country para o pop." },
+  { q: "Qual álbum foi lançado de surpresa em julho de 2020, durante a pandemia?", o: ["evermore", "folklore", "Lover", "Midnights"], a: 1,
+    f: "folklore saiu em julho de 2020; o \"álbum irmão\", evermore, veio em dezembro do mesmo ano." },
+  { q: "Como se chama a turnê de 2023–2024 que virou a mais lucrativa da história?", o: ["Reputation Stadium Tour", "The Eras Tour", "Lover Fest", "1989 World Tour"], a: 1,
+    f: "The Eras Tour percorreu todas as eras da carreira dela e ultrapassou US$ 2 bilhões." },
+  { q: "Qual desses NÃO é o nome de um dos gatos da Taylor?", o: ["Meredith Grey", "Olivia Benson", "Benjamin Button", "Karma"], a: 3,
+    f: "Meredith, Olivia e Benjamin são os gatos. \"Karma\" é uma música do Midnights (\"Karma is a cat...\")." },
+  { q: "\"Anti-Hero\" é o primeiro single de qual álbum?", o: ["Midnights", "folklore", "reputation", "The Tortured Poets Department"], a: 0,
+    f: "Midnights (2022): \"It's me, hi, I'm the problem, it's me\"." },
+  { q: "A versão de 10 minutos de \"All Too Well\" saiu em qual regravação?", o: ["Fearless (Taylor's Version)", "Red (Taylor's Version)", "1989 (Taylor's Version)", "Speak Now (Taylor's Version)"], a: 1,
+    f: "Red (Taylor's Version), de 2021, e ela ainda dirigiu um curta-metragem para a música." },
+  { q: "Qual álbum foi lançado em 2017, com a estética de cobras?", o: ["Lover", "reputation", "1989", "Red"], a: 1,
+    f: "reputation (2017), com \"Look What You Made Me Do\"." },
+  { q: "Como os fãs da Taylor são chamados?", o: ["Swifters", "Taylorettes", "Swifties", "Tayers"], a: 2,
+    f: "Swifties! E eles adoram trocar pulseirinhas da amizade nos shows." },
+  { q: "Qual álbum foi lançado em abril de 2024?", o: ["Midnights", "The Tortured Poets Department", "evermore", "Lover"], a: 1,
+    f: "The Tortured Poets Department, que ganhou uma edição dupla \"The Anthology\" horas depois." },
+  { q: "Qual álbum deu a ela o primeiro Grammy de Álbum do Ano?", o: ["Taylor Swift", "Fearless", "Red", "1989"], a: 1,
+    f: "Fearless, em 2010. Depois ela venceu de novo com 1989, folklore e Midnights — recorde de 4 vitórias." },
+  { q: "\"You Need to Calm Down\" e \"ME!\" estão em qual álbum?", o: ["Lover", "1989", "reputation", "Midnights"], a: 0,
+    f: "Lover (2019), o álbum mais colorido dela." },
+  { q: "Que instrumento Taylor começou a tocar por volta dos 12 anos para compor?", o: ["Piano", "Violão", "Banjo", "Ukulele"], a: 1,
+    f: "O violão! Um técnico de computador a ensinou os primeiros acordes." },
+  { q: "Qual é o 12º álbum de estúdio da Taylor, lançado em outubro de 2025?", o: ["The Life of a Showgirl", "Midnights", "Karma", "Lavender Haze"], a: 0,
+    f: "The Life of a Showgirl, com o single \"The Fate of Ophelia\"." },
+  { q: "Para qual cidade a família da Taylor se mudou para ela seguir carreira no country?", o: ["Los Angeles", "Nashville", "Austin", "Memphis"], a: 1,
+    f: "Nashville, no Tennessee, quando ela tinha uns 14 anos." },
+  { q: "Qual álbum tem \"Mine\" e \"Enchanted\"?", o: ["Speak Now", "Fearless", "Red", "evermore"], a: 0,
+    f: "Speak Now (2010), que ela compôs inteirinho sozinha." },
+];
+
+const ROUND = 10;
+const $ = id => document.getElementById(id);
+let deck = [], i = 0, score = 0;
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let k = a.length - 1; k > 0; k--) {
+    const j = Math.floor(Math.random() * (k + 1));
+    [a[k], a[j]] = [a[j], a[k]];
+  }
+  return a;
+}
+
+function start() {
+  deck = shuffle(QUESTIONS).slice(0, ROUND).map(item => {
+    const order = shuffle(item.o.map((text, idx) => ({ text, right: idx === item.a })));
+    return { q: item.q, f: item.f, opts: order };
+  });
+  i = 0; score = 0;
+  $("start").hidden = true; $("end").hidden = true; $("game").hidden = false;
+  show();
+}
+
+function show() {
+  const cur = deck[i];
+  $("count").textContent = `Pergunta ${i + 1} de ${deck.length}`;
+  $("pts").textContent = `${score} ponto${score === 1 ? "" : "s"}`;
+  $("prog").style.width = `${(i / deck.length) * 100}%`;
+  $("question").textContent = cur.q;
+  $("fact").textContent = "";
+  $("next").hidden = true;
+  const box = $("options");
+  box.innerHTML = "";
+  cur.opts.forEach(opt => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = opt.text;
+    b.onclick = () => answer(b, opt.right);
+    box.appendChild(b);
+  });
+}
+
+function answer(btn, right) {
+  const buttons = [...$("options").children];
+  buttons.forEach((b, idx) => {
+    b.disabled = true;
+    if (deck[i].opts[idx].right) b.classList.add("ok");
+  });
+  if (right) score++; else btn.classList.add("bad");
+  $("pts").textContent = `${score} ponto${score === 1 ? "" : "s"}`;
+  $("fact").textContent = (right ? "✅ Acertou! " : "❌ Errou! ") + deck[i].f;
+  $("next").textContent = i + 1 < deck.length ? "Próxima" : "Ver resultado";
+  $("next").hidden = false;
+}
+
+function next() {
+  i++;
+  if (i < deck.length) return show();
+  $("game").hidden = true; $("end").hidden = false;
+  const pct = score / deck.length;
+  const [emoji, verdict] =
+    pct === 1  ? ["👑", "Perfeito! Você é a Swiftie suprema — merece a pulseirinha mais brilhante."] :
+    pct >= .7  ? ["💜", "Mandou muito bem! Claramente você conhece todas as eras."] :
+    pct >= .4  ? ["🎸", "Nada mal! Que tal uma maratona da discografia para subir de nível?"] :
+                 ["🐍", "\"It's me, hi, I'm the problem\"... mas dá para tentar de novo!"];
+  $("emoji").textContent = emoji;
+  $("final").textContent = `Você acertou ${score} de ${deck.length}`;
+  $("verdict").textContent = verdict;
+}
+
+$("go").onclick = start;
+$("again").onclick = start;
+$("next").onclick = next;
+</script>
+</body>
+</html>

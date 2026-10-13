@@ -1,0 +1,1906 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seis Contas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap">
+<style>
+  /* Layout: coluna estreita de app — cabeçalho com ícones, pulseira de 6 contas (as tentativas), cartão de pistas, 6 linhas de palpite e o campo de palpite */
+  :root {
+    --bg: #f5f0f6;
+    --surface: #fffcfd;
+    --soft: #f3ebf4;
+    --ink: #2a1c31;
+    --muted: #74647c;
+    --line: #e2d6e6;
+    --accent: #b8306f;
+    --on-accent: #ffffff;
+    --ok: #1d8a52;
+    --near: #b77a06;
+    --bad: #c43c3c;
+    --shadow: 0 10px 30px rgba(70, 30, 80, .08);
+    --display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #150f18; --surface: #211829; --soft: #2a2032; --ink: #f4eaf6; --muted: #ad9db5;
+      --line: #3a2d43; --accent: #ff7cb8; --on-accent: #2a0f1d; --ok: #4fd08b; --near: #f2b84b; --bad: #ff8080;
+      --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #150f18; --surface: #211829; --soft: #2a2032; --ink: #f4eaf6; --muted: #ad9db5;
+    --line: #3a2d43; --accent: #ff7cb8; --on-accent: #2a0f1d; --ok: #4fd08b; --near: #f2b84b; --bad: #ff8080;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
+  .wrap { max-width: 540px; margin-inline: auto; padding-inline: 16px; padding-block: 16px 48px; display: grid; gap: 16px; }
+  p { margin: 0; }
+  button, input { font: inherit; color: inherit; }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .label { font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  .back { justify-self: start; font-weight: 700; font-size: .9rem; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--accent); }
+
+  /* Cabeçalho */
+  .top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .icons { display: flex; gap: 4px; }
+  .icon {
+    width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; cursor: pointer;
+    background: transparent; border: 0; color: var(--accent);
+  }
+  .icon:hover { background: var(--soft); }
+  .icon svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .icon[aria-pressed="true"] { background: var(--soft); }
+  .brand { text-align: center; min-width: 0; }
+  .brand h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(1.5rem, 6.5vw, 2rem); line-height: 1.1; color: var(--accent); }
+  .brand p { font-size: .85rem; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* Pulseira das tentativas */
+  .tries { display: flex; justify-content: center; position: relative; gap: 8px; }
+  .tries::before { content: ""; position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; background: var(--line); }
+  .try {
+    position: relative; width: 38px; height: 38px; border-radius: 32%; display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 1rem; color: var(--muted);
+    background: var(--bg); border: 2px dashed var(--line);
+  }
+  .try.now { border: 2px solid var(--ink); color: var(--ink); }
+  .try.filled { border: 1px solid rgba(0, 0, 0, .15); color: #ffffff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .16), inset 0 2px 0 rgba(255, 255, 255, .3); }
+  .try.skip { background: var(--muted); }
+  .try.bad { background: var(--bad); }
+  .try.near { background: var(--near); }
+  .try.ok { background: var(--ok); }
+
+  /* Cartão de pistas */
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); display: grid; gap: 14px; }
+  .emoji { font-size: clamp(2.2rem, 10vw, 3.2rem); text-align: center; letter-spacing: .05em; line-height: 1.2; }
+  .clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .clue { border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; background: var(--soft); }
+  .clue.locked { background: transparent; border: 1.5px dashed var(--line); color: var(--muted); font-size: .9rem; }
+  .clue.fresh { animation: slide .35s ease-out both; }
+  @keyframes slide { from { transform: translateY(-6px); } }
+  .era-line { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 1px solid rgba(0, 0, 0, .15); flex: none; }
+
+  .listen-row { display: flex; align-items: center; gap: 12px; }
+  .ring { position: relative; width: 56px; height: 56px; flex: none; border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: 50%; }
+  .ring:disabled { cursor: not-allowed; }
+  .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .track { fill: var(--surface); stroke: var(--line); stroke-width: 4; }
+  .ring .prog { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+  .ring .glyph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent); }
+  .ring .glyph svg { position: static; width: 22px; height: 22px; transform: none; fill: currentColor; }
+  .ring:disabled .glyph { color: var(--muted); }
+
+  /* Modo áudio: trecho oficial da música */
+  .player { display: grid; justify-items: center; gap: 10px; }
+  .ring.big { width: 96px; height: 96px; }
+  .ring.big .glyph svg { width: 34px; height: 34px; }
+  .clipbar { position: relative; width: 100%; height: 10px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+  .clipbar .open { position: absolute; inset: 0 auto 0 0; width: var(--open); background: color-mix(in srgb, var(--accent) 30%, var(--soft)); }
+  .clipbar .now { position: absolute; inset: 0 auto 0 0; width: var(--now, 0%); background: var(--accent); }
+  .clipbar .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); }
+  .clip-label { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .clip-label small { display: block; text-align: center; font-weight: 600; color: var(--muted); }
+
+  /* Linhas de palpite */
+  .rows { display: grid; gap: 8px; }
+  .row {
+    min-height: 50px; border-radius: 12px; padding: 8px 12px; display: grid; gap: 4px; align-content: center;
+    background: var(--surface); border: 1.5px solid var(--line);
+  }
+  .row.empty { background: transparent; border-style: dashed; }
+  .row.now { border: 2px solid var(--ink); }
+  .row.skip { color: var(--muted); font-style: italic; }
+  .row.bad { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+  .row.near { border-color: var(--near); background: color-mix(in srgb, var(--near) 12%, var(--surface)); }
+  .row.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, var(--surface)); }
+  .row .title { font-weight: 700; overflow-wrap: anywhere; line-height: 1.3; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+  .chip.near { background: color-mix(in srgb, var(--near) 22%, var(--surface)); color: var(--ink); }
+  .chip .dot { width: 9px; height: 9px; }
+
+  /* Palpite */
+  .guess { display: grid; gap: 10px; }
+  .suggest { list-style: none; margin: 0; padding: 4px; display: grid; gap: 2px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+  .suggest button {
+    width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer; padding: 8px 10px; border-radius: 10px;
+    display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  }
+  .suggest button:hover, .suggest button.active { background: var(--soft); }
+  .suggest b { font-weight: 700; overflow-wrap: anywhere; }
+  .suggest small { color: var(--muted); white-space: nowrap; }
+  .entry { display: flex; border-radius: 14px; overflow: hidden; border: 1.5px solid var(--line); background: var(--surface); }
+  .entry:focus-within { border-color: var(--accent); }
+  .entry input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 13px 14px; outline: none; }
+  .entry input::placeholder { color: var(--muted); }
+  .entry button { border: 0; padding: 0 18px; cursor: pointer; background: var(--accent); color: var(--on-accent); font-family: var(--display); font-weight: 600; font-size: 1.05rem; }
+  .skip-btn {
+    justify-self: center; cursor: pointer; padding: 9px 18px; border-radius: 12px; font-weight: 700;
+    background: var(--soft); border: 1.5px solid var(--line);
+  }
+  .skip-btn small { font-weight: 600; color: var(--muted); }
+  .skip-btn:hover { border-color: var(--accent); }
+
+  /* Resultado */
+  .result { display: grid; gap: 12px; justify-items: center; text-align: center; }
+  .verdict { font-family: var(--display); font-weight: 600; font-size: 1.35rem; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.bad { color: var(--bad); }
+  .bracelet { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 16px; font-size: clamp(12px, 3.6vw, 16px); }
+  .word { position: relative; display: inline-flex; gap: .2em; }
+  .word::before { content: ""; position: absolute; left: -.4em; right: -.4em; top: 50%; height: 2px; background: var(--line); }
+  .bead {
+    position: relative; width: 2.05em; height: 2.05em; display: grid; place-items: center;
+    border-radius: 32%; font-family: var(--display); font-weight: 700; line-height: 1;
+    background: var(--c); color: var(--t); border: 1px solid rgba(0, 0, 0, .14);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .16), inset 0 2px 0 rgba(255, 255, 255, .35);
+    animation: pop .35s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--d, 0) * 35ms);
+  }
+  @keyframes pop { from { transform: scale(.4) rotate(-12deg); } }
+  .meta { color: var(--muted); font-weight: 600; }
+  .fact { justify-self: stretch; text-align: left; background: var(--soft); border-radius: 12px; padding: 12px 14px; }
+  .links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .links a {
+    display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; font-weight: 700; font-size: .9rem;
+    text-decoration: none; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line);
+  }
+  .links a:hover { border-color: var(--accent); }
+  .links svg { width: 14px; height: 14px; fill: currentColor; }
+  .btn {
+    display: block; width: 100%; border: 0; border-radius: 14px; padding: 13px 18px; cursor: pointer;
+    font-family: var(--display); font-weight: 600; font-size: 1.05rem; background: var(--accent); color: var(--on-accent);
+  }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .actions { justify-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .countdown { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .countdown b { color: var(--ink); font-family: var(--display); font-size: 1.1rem; }
+  .share-fallback { justify-self: stretch; width: 100%; min-height: 96px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); padding: 10px; font: inherit; color: inherit; }
+
+  /* Janelas */
+  dialog {
+    width: min(460px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow: auto; padding: 22px; border-radius: 20px;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  dialog::backdrop { background: rgba(10, 5, 15, .55); }
+  dialog h2 { margin: 0 0 12px; font-family: var(--display); font-weight: 600; font-size: 1.35rem; }
+  dialog .x { position: absolute; top: 12px; right: 12px; }
+  .help-list { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; }
+  .legend { display: grid; gap: 6px; margin-bottom: 16px; }
+  .legend div { display: flex; align-items: center; gap: 10px; }
+  .legend .try { width: 26px; height: 26px; font-size: .8rem; flex: none; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; text-align: center; }
+  .stats b { display: block; font-family: var(--display); font-size: 1.7rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stats span { font-size: .75rem; color: var(--muted); line-height: 1.2; display: block; }
+  .dist { display: grid; gap: 6px; }
+  .dist div { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar { height: 24px; min-width: 26px; width: var(--w); border-radius: 6px; background: var(--muted); color: #ffffff; font-size: .8rem; display: flex; justify-content: flex-end; align-items: center; padding-inline: 8px; }
+  .bar.hl { background: var(--ok); }
+  .setting { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+  .switch { width: 50px; height: 28px; border-radius: 999px; border: 0; cursor: pointer; background: var(--line); position: relative; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #ffffff; transition: transform .15s; }
+  .switch[aria-checked="true"] { background: var(--accent); }
+  .switch[aria-checked="true"]::after { transform: translateX(22px); }
+  .danger { margin-top: 14px; display: grid; gap: 8px; }
+  .link-btn { background: none; border: 0; padding: 0; cursor: pointer; color: var(--bad); font-weight: 700; justify-self: start; }
+
+  .toast {
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%);
+    padding: 10px 16px; border-radius: 12px; font-weight: 700; background: var(--ink); color: var(--bg); box-shadow: var(--shadow); z-index: 10;
+  }
+  .note { color: var(--muted); font-size: .85rem; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bead, .clue.fresh { animation: none; }
+    .switch::after { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../">← Mais jogos</a>
+
+  <header class="top">
+    <div class="icons">
+      <button class="icon" id="helpBtn" aria-label="Como jogar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><path d="M12 17.5h.01"/></svg>
+      </button>
+      <button class="icon" id="modeBtn" aria-label="Modo livre" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c-2-2.5-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.5 6-4zm0 0c2 2.5 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.5-6 4z"/></svg>
+      </button>
+    </div>
+    <div class="brand">
+      <h1>Seis Contas</h1>
+      <p id="subtitle">Música do dia</p>
+    </div>
+    <div class="icons">
+      <button class="icon" id="statsBtn" aria-label="Estatísticas">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11"/><path d="M12 20V4"/><path d="M18 20v-6"/></svg>
+      </button>
+      <button class="icon" id="settingsBtn" aria-label="Configurações">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="tries" id="tries" aria-label="Tentativas"></div>
+  <section class="panel" id="cluesPanel" aria-live="polite"></section>
+  <section class="rows" id="rows" aria-label="Seus palpites"></section>
+
+  <form class="guess" id="guessForm" autocomplete="off">
+    <ul class="suggest" id="suggest" hidden></ul>
+    <div class="entry">
+      <input id="guessInput" type="text" placeholder="Digite o nome da música..." aria-label="Seu palpite" spellcheck="false">
+      <button type="submit">Chutar</button>
+    </div>
+    <button type="button" class="skip-btn" id="skipBtn"></button>
+  </form>
+  <section class="panel result" id="result" hidden></section>
+  <p class="note" id="footNote">As pistas usam emojis, histórias e curiosidades, sem letras de música. A trilha é original, no clima de cada era.</p>
+</div>
+
+<dialog id="helpDlg" aria-labelledby="helpT">
+  <button class="icon x" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <h2 id="helpT">Como jogar</h2>
+  <ol class="help-list">
+    <li>Descubra a música da Taylor em até 6 tentativas.</li>
+    <li id="helpSteps">Você começa só com os emojis. Cada palpite errado ou pulo libera uma pista nova: dica 1, trilha da era, dica 2, álbum e ano, dica 3.</li>
+    <li>Digite o nome e escolha a música na lista.</li>
+    <li>A música do dia é a mesma para todo mundo e troca à meia-noite. No modo livre você joga quantas quiser.</li>
+  </ol>
+  <div class="legend">
+    <div><span class="try filled ok">✓</span>Acertou a música</div>
+    <div><span class="try filled near">~</span>Errou, mas é do mesmo álbum</div>
+    <div><span class="try filled bad">✕</span>Errou e é de outro álbum</div>
+    <div><span class="try filled skip">–</span>Pulou</div>
+  </div>
+  <button class="btn" data-close>Jogar</button>
+</dialog>
+
+<dialog id="statsDlg" aria-labelledby="statsT">
+  <button class="icon x" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <h2 id="statsT">Estatísticas</h2>
+  <div id="statsBody"></div>
+</dialog>
+
+<dialog id="settingsDlg" aria-labelledby="setT">
+  <button class="icon x" data-close aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <h2 id="setT">Configurações</h2>
+  <div class="setting">
+    <span>Efeitos sonoros</span>
+    <button class="switch" id="sfxSwitch" role="switch" aria-checked="true" aria-label="Efeitos sonoros"></button>
+  </div>
+  <div class="danger" id="resetBox">
+    <button class="link-btn" id="resetAsk">Zerar minhas estatísticas</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const SONGS = [
+ {
+  "title": "Tim McGraw",
+  "album": "Taylor Swift",
+  "year": 2006,
+  "emoji": "🤠🎶🛻🌙",
+  "clues": [
+   "A nostalgia de um namoro de adolescência que está acabando porque o garoto vai embora para a faculdade.",
+   "Taylor contou que a ideia surgiu numa aula de matemática, no primeiro ano do ensino médio, e terminou a faixa com Liz Rose.",
+   "Primeiro single da carreira dela, lançado em 2006, leva o nome de um astro do country que é casado com Faith Hill."
+  ],
+  "fact": "Tim McGraw saiu em junho de 2006 e chegou ao 6º lugar na parada country da Billboard. Em 2007, Taylor abriu shows da turnê de Tim McGraw e Faith Hill."
+ },
+ {
+  "title": "Teardrops on My Guitar",
+  "album": "Taylor Swift",
+  "year": 2006,
+  "emoji": "💧🎸💔🏫",
+  "clues": [
+   "Uma paixão secreta por um amigo que só tem olhos para outra garota.",
+   "O rapaz da letra tem o nome real de um colega de escola de Taylor, que só a enxergava como amiga.",
+   "No clipe, o ator Tyler Hilton, de One Tree Hill, vive o garoto; foi o segundo single do álbum de estreia, em 2007."
+  ],
+  "fact": "Teardrops on My Guitar chegou ao 13º lugar na Billboard Hot 100 e foi um dos primeiros sucessos de Taylor a cruzar do country para o pop."
+ },
+ {
+  "title": "Our Song",
+  "album": "Taylor Swift",
+  "year": 2006,
+  "emoji": "💑📻🎶🚪",
+  "clues": [
+   "Um romance adolescente doce, em que pequenos momentos do cotidiano ganham significado especial para o casal.",
+   "Taylor compôs a faixa no primeiro ano do ensino médio para apresentar no show de talentos da escola.",
+   "Fecha o álbum de estreia e foi o primeiro nº 1 dela na parada country da Billboard, onde ficou seis semanas no topo."
+  ],
+  "fact": "Com Our Song, Taylor, ainda adolescente, virou a pessoa mais jovem a escrever sozinha e cantar um nº 1 da parada country da Billboard."
+ },
+ {
+  "title": "Picture to Burn",
+  "album": "Taylor Swift",
+  "year": 2006,
+  "emoji": "🖼️🔥😤🛻",
+  "clues": [
+   "Uma explosão de raiva bem-humorada contra um ex arrogante, sem um pingo de saudade.",
+   "No clipe, Taylor e uma amiga espionam o ex quando ele volta de um encontro, e sonha acordada com a banda destruindo a casa dele.",
+   "Quarto single do disco de estreia (2008), teve um trecho da letra alterado na versão para rádio por ser considerado ofensivo."
+  ],
+  "fact": "Picture to Burn chegou ao 3º lugar na parada country e ao 28º na Hot 100. Taylor disse que a fez sobre um garoto metido com quem quase chegou a namorar."
+ },
+ {
+  "title": "Should've Said No",
+  "album": "Taylor Swift",
+  "year": 2006,
+  "emoji": "🙅‍♀️💔🌧️🎤",
+  "clues": [
+   "Uma traição descoberta e uma garota firme, que deixa claro que o arrependimento do rapaz chegou tarde.",
+   "Taylor a compôs sozinha em cerca de 20 minutos, dois dias antes da masterização, e ela entrou no álbum de estreia de última hora.",
+   "No ACM Awards de 2008, ela cantou essa faixa e terminou encharcada por uma cascata de água que caiu sobre o palco."
+  ],
+  "fact": "Should've Said No foi o quinto e último single do álbum de estreia, lançado em 2008, e virou o segundo nº 1 de Taylor na parada country da Billboard."
+ },
+ {
+  "title": "Love Story",
+  "album": "Fearless",
+  "year": 2008,
+  "emoji": "🏰👸🤴💍🌹",
+  "clues": [
+   "Um casal jovem enfrenta a oposição da família da moça, numa trama de conto de fadas com final feliz.",
+   "A letra se inspira em Romeu e Julieta, mas troca a tragédia de Shakespeare por um desfecho feliz.",
+   "Primeiro single de Fearless (2008), tem clipe gravado num castelo no Tennessee e foi a primeira regravação lançada, em 2021."
+  ],
+  "fact": "Love Story (Taylor's Version) estreou em 1º na parada country em 2021, e Taylor virou a 2ª artista, após Dolly Parton, a liderar com original e regravação."
+ },
+ {
+  "title": "You Belong With Me",
+  "album": "Fearless",
+  "year": 2008,
+  "emoji": "🏠🪟📝👓🏈",
+  "clues": [
+   "Uma garota comum, apaixonada pelo vizinho, sofre ao vê-lo namorar uma menina que nem o valoriza.",
+   "No clipe, Taylor faz dois papéis, a garota tímida de óculos e a rival popular, e o casal conversa por cartazes na janela.",
+   "O clipe venceu o VMA de 2009 de Melhor Vídeo Feminino, na premiação famosa pela interrupção de Kanye West."
+  ],
+  "fact": "Taylor teve a ideia de You Belong With Me ao ouvir um amigo ao telefone tentando acalmar a namorada, que estava brava com ele."
+ },
+ {
+  "title": "Fifteen",
+  "album": "Fearless",
+  "year": 2008,
+  "emoji": "🏫🎒👭💭",
+  "clues": [
+   "Um olhar nostálgico para o primeiro ano do ensino médio e as lições que só a adolescência ensina.",
+   "No clipe, feito com tela verde, Taylor revive num jardim mágico lembranças da escola ao lado da amiga Abigail.",
+   "No Grammy de 2009, Taylor cantou essa faixa ao lado de Miley Cyrus, que fazia ali sua estreia no palco da premiação."
+  ],
+  "fact": "Taylor só incluiu Fifteen no álbum depois que a amiga Abigail Anderson autorizou as referências pessoais. O clipe foi dirigido por Roman White."
+ },
+ {
+  "title": "White Horse",
+  "album": "Fearless",
+  "year": 2008,
+  "emoji": "🐎🤍👑💔",
+  "clues": [
+   "Uma balada melancólica sobre o fim de uma ilusão romântica e a decisão de seguir em frente sozinha.",
+   "No clipe, Taylor descobre que o namorado, vivido por Stephen Colletti, de One Tree Hill, é casado.",
+   "Tocou na estreia da 5ª temporada de Grey's Anatomy e rendeu a Taylor dois Grammys de country em 2010."
+  ],
+  "fact": "Taylor pensou em deixar White Horse fora de Fearless, que já tinha muitas faixas tristes, mas a incluiu depois que Grey's Anatomy quis usá-la."
+ },
+ {
+  "title": "Fearless",
+  "album": "Fearless",
+  "year": 2008,
+  "emoji": "🦁💃🌧️✨",
+  "clues": [
+   "A euforia de se jogar de cabeça num romance novo, mesmo sabendo dos riscos.",
+   "Taylor contou que a criou na estrada, em turnê, imaginando o melhor primeiro encontro que ela ainda nem tinha vivido.",
+   "É a faixa de abertura e dá nome ao álbum que venceu o Grammy de Álbum do Ano em 2010."
+  ],
+  "fact": "A faixa Fearless estreou em 9º na Billboard Hot 100 em 2008 como single promocional e foi às rádios em 2010, com clipe feito de imagens da turnê."
+ },
+ {
+  "title": "Mine",
+  "album": "Speak Now",
+  "year": 2010,
+  "emoji": "💍🌊🏡👶",
+  "clues": [
+   "Um romance jovem que vira uma vida a dois, mesmo com o receio dela de que tudo acabe mal.",
+   "O clipe acompanha um casal do primeiro encontro ao casamento, passando por brigas e pela chegada dos filhos.",
+   "Primeiro single de Speak Now, saiu antes da data em 2010 após vazar; o clipe foi codirigido pela própria Taylor."
+  ],
+  "fact": "Taylor descreveu Mine como uma faixa sobre sua tendência de fugir quando o assunto é amor. O clipe venceu Vídeo do Ano no CMT Music Awards 2011."
+ },
+ {
+  "title": "Back to December",
+  "album": "Speak Now",
+  "year": 2010,
+  "emoji": "❄️📅⏪💔",
+  "clues": [
+   "Um pedido de desculpas cheio de arrependimento a um ex que ela magoou ao terminar.",
+   "Taylor disse que foi a primeira vez que pediu perdão a alguém numa de suas letras.",
+   "No clipe dirigido por Yoann Lemoine, começa a nevar dentro do quarto dela; foi o segundo single de Speak Now, em 2010."
+  ],
+  "fact": "As cenas do rapaz no clipe de Back to December foram gravadas em Binghamton, Nova York, único lugar com neve que a equipe achou na época."
+ },
+ {
+  "title": "Mean",
+  "album": "Speak Now",
+  "year": 2010,
+  "emoji": "🪕🗞️😤🎤",
+  "clues": [
+   "Uma resposta bem-humorada a quem a atacava, sobre seguir em frente sem deixar as críticas definirem quem ela é.",
+   "Com banjo e clima de bluegrass, costuma ser associada às críticas que ela recebeu após cantar com Stevie Nicks no Grammy de 2010.",
+   "Venceu dois Grammys em 2012, incluindo Melhor Canção Country, e Taylor a cantou na própria cerimônia."
+  ],
+  "fact": "Ao ganhar o Grammy por Mean em 2012, Taylor brincou que nada se compara a escrever sobre alguém cruel com você e depois ganhar um Grammy por isso."
+ },
+ {
+  "title": "Enchanted",
+  "album": "Speak Now",
+  "year": 2010,
+  "emoji": "✨👗🌃🦉💜",
+  "clues": [
+   "O frio na barriga de uma conexão instantânea com alguém recém-conhecido e a dúvida se ele sentiu o mesmo.",
+   "Taylor a escreveu após conhecer alguém em Nova York; a mensagem secreta do encarte soletra o nome ADAM.",
+   "Adam Young, do Owl City, respondeu em 2011 publicando a própria versão da faixa, com versos dirigidos a Taylor."
+  ],
+  "fact": "Adam Young postou sua versão-resposta de Enchanted por volta de 14 de fevereiro de 2011, o Valentine's Day. Taylor nunca confirmou nem negou que fosse sobre ele."
+ },
+ {
+  "title": "Long Live",
+  "album": "Speak Now",
+  "year": 2010,
+  "emoji": "👑🎆🎸🙌",
+  "clues": [
+   "Uma celebração emocionada das conquistas compartilhadas com quem esteve junto desde o começo.",
+   "Taylor dedicou a faixa à sua banda e aos fãs, e ela encerra a edição padrão de Speak Now.",
+   "Em 2012, ganhou no Brasil uma versão com versos em português cantados por Paula Fernandes."
+  ],
+  "fact": "A versão de Long Live com Paula Fernandes saiu como single digital no Brasil em janeiro de 2012, ganhou clipe próprio e chegou ao top 10 das rádios."
+ },
+ {
+  "title": "Shake It Off",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "💃🫨🙉🎶",
+  "clues": [
+   "Uma resposta bem-humorada às críticas e fofocas da imprensa: ela prefere se divertir a dar ouvidos a comentários maldosos.",
+   "No clipe, ela tenta acompanhar bailarinas, líderes de torcida e dançarinos de vários gêneros, sempre de um jeito desajeitado.",
+   "Primeiro single do álbum de 2014 que marcou sua virada total para o pop; estreou direto no 1º lugar da Billboard Hot 100."
+  ],
+  "fact": "Shake It Off foi indicada a Gravação do Ano e Canção do Ano no Grammy de 2015, e seu clipe foi dirigido por Mark Romanek."
+ },
+ {
+  "title": "Blank Space",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "⬜🪐✍️💔",
+  "clues": [
+   "Uma sátira exagerada à fama de destruidora de corações que a imprensa criou sobre a vida amorosa dela.",
+   "No clipe, um romance numa mansão luxuosa vira caos, e ela ataca o carro esportivo do namorado com um taco de golfe.",
+   "Ao substituir outro hit do mesmo álbum no topo da Hot 100, ela virou a 1ª mulher a suceder a si mesma no 1º lugar."
+  ],
+  "fact": "O clipe de Blank Space, dirigido por Joseph Kahn, venceu os VMAs de Melhor Clipe Pop e Melhor Clipe Feminino em 2015."
+ },
+ {
+  "title": "Style",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "🕶️👗✨🚗",
+  "clues": [
+   "Um romance intenso e cheio de idas e vindas, contado com uma atmosfera retrô e cinematográfica.",
+   "O clipe é feito de imagens sobrepostas e reflexos, e tem o ator britânico Dominic Sherwood como par romântico.",
+   "Terceiro single do álbum de 2014; muitos fãs ligam a letra a um ex-integrante do One Direction com quem ela namorou."
+  ],
+  "fact": "Style foi escrita por Taylor com Max Martin, Shellback e Ali Payami, que também a produziram; muitos fãs veem no título um trocadilho com Harry Styles."
+ },
+ {
+  "title": "Bad Blood",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "🩸💔⚔️💥",
+  "clues": [
+   "Uma música sobre uma amizade que virou rivalidade depois de uma traição difícil de perdoar.",
+   "O clipe é um filme de ação futurista em que um time de mulheres famosas, cada uma com um codinome, se prepara para lutar.",
+   "A versão single tem participação de Kendrick Lamar, e o clipe venceu o VMA de Clipe do Ano em 2015."
+  ],
+  "fact": "O clipe de Bad Blood reúne Selena Gomez, Lena Dunham, Karlie Kloss, Gigi Hadid e outras, e ganhou o Grammy de Melhor Videoclipe em 2016."
+ },
+ {
+  "title": "Wildest Dreams",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "🦁💭🎬🌅",
+  "clues": [
+   "Um romance glamouroso e passageiro, vivido com intensidade e uma pitada de melancolia.",
+   "O clipe imita um filme da era de ouro de Hollywood: dois astros se apaixonam nas filmagens de um longa na África.",
+   "O galã do clipe é Scott Eastwood, filho de Clint Eastwood; em 2021, a regravação saiu após viralizar no TikTok."
+  ],
+  "fact": "Um aviso no fim do clipe de Wildest Dreams informa que todo o lucro do vídeo seria doado à African Parks Foundation of America, ONG de conservação."
+ },
+ {
+  "title": "Out of the Woods",
+  "album": "1989",
+  "year": 2014,
+  "emoji": "🌲🐺🏃‍♀️❓",
+  "clues": [
+   "Uma música ansiosa sobre um relacionamento frágil, cheio de incertezas sobre se vai ou não dar certo.",
+   "No clipe, ela corre por paisagens sombrias perseguida por lobos e por galhos que brotam do chão, até chegar ao mar.",
+   "Produzida com Jack Antonoff, saiu como single promocional em 2014; o clipe estreou na TV na virada de 2015 para 2016."
+  ],
+  "fact": "O clipe de Out of the Woods, dirigido por Joseph Kahn, foi gravado na Nova Zelândia, em lugares como Bethells Beach e Queenstown."
+ },
+ {
+  "title": "We Are Never Ever Getting Back Together",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "🙅‍♀️🔁💑📞",
+  "clues": [
+   "Um desabafo sarcástico e cansado sobre um ex cheio de idas e vindas, com um ponto final definitivo.",
+   "Tem uma ponte falada em tom de conversa, e o clipe parece gravado em um único plano contínuo, com a banda fantasiada de bichos.",
+   "Primeiro single do álbum de 2012 e primeira parceria dela com Max Martin e Shellback, virou seu 1º nº 1 na Hot 100."
+  ],
+  "fact": "A ideia surgiu quando um amigo do ex de Taylor foi ao estúdio comentar boatos de reconciliação; ela, Max Martin e Shellback criaram a música na hora."
+ },
+ {
+  "title": "I Knew You Were Trouble",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "⚠️😈💔🏜️",
+  "clues": [
+   "Arrependimento por ter se envolvido com um rapaz de má fama, ignorando todos os sinais de alerta desde o começo.",
+   "O clipe começa com ela acordando sozinha num deserto após um festival e relembra um romance autodestrutivo.",
+   "O refrão traz uma batida inspirada no dubstep, novidade em sua carreira; o par no clipe é o ator Reeve Carney."
+  ],
+  "fact": "O clipe de I Knew You Were Trouble venceu o VMA de Melhor Clipe Feminino em 2013, e a música virou meme numa versão com gritos de bode."
+ },
+ {
+  "title": "22",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "🎂👯‍♀️🎉🎩",
+  "clues": [
+   "Uma celebração leve e festiva da juventude e das noites despreocupadas ao lado das amigas.",
+   "No clipe, gravado em Malibu, ela curte praia, piscina e festa com amigas da vida real, como a atriz Jessica Szohr.",
+   "Na The Eras Tour, ela entrega seu chapéu preto a um fã da plateia, geralmente uma criança, durante essa música."
+  ],
+  "fact": "22 foi o quarto single de Red nos EUA; Taylor completou 22 anos em dezembro de 2011, e o clipe foi dirigido por Anthony Mandler."
+ },
+ {
+  "title": "All Too Well",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "🧣🍂🚗😭",
+  "clues": [
+   "Uma balada devastadora que revive, com riqueza de detalhes, um romance que terminou e ainda dói.",
+   "Um cachecol se tornou o objeto mais simbólico dessa história e alimentou teorias dos fãs por quase uma década.",
+   "Em 2021, ganhou uma versão de 10 minutos e um curta dirigido por ela, estrelado por Sadie Sink e Dylan O'Brien."
+  ],
+  "fact": "All Too Well (10 Minute Version) chegou ao 1º lugar da Billboard Hot 100 em 2021, tornando-se a música mais longa a liderar a parada."
+ },
+ {
+  "title": "Red",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "🟥❤️🍒💄",
+  "clues": [
+   "Uma faixa que descreve um amor intenso por meio de cores e sensações fortes e contraditórias.",
+   "Mistura banjo e violões com efeitos eletrônicos na voz, num ponto de encontro entre o country, o pop e o rock.",
+   "É a faixa-título do álbum de 2012; no CMA Awards de 2013, ganhou versão acústica com Alison Krauss e Vince Gill."
+  ],
+  "fact": "Red foi lançada como single em 2013 e, em 2021, ganhou nova gravação no álbum Red (Taylor's Version)."
+ },
+ {
+  "title": "Begin Again",
+  "album": "Red",
+  "year": 2012,
+  "emoji": "🌱🔄☕💛",
+  "clues": [
+   "Depois de um relacionamento desgastante, ela redescobre que o amor ainda pode ser leve e gentil.",
+   "A canção fecha o álbum de 2012 com tom esperançoso, narrando um primeiro encontro tranquilo após um término.",
+   "Lançada como single em 2012, estreou em 7º lugar na Hot 100; no clipe, ela passeia pelas ruas de Paris."
+  ],
+  "fact": "Begin Again foi composta só por Taylor, que a cantou no CMA Awards de 2012 num cenário inspirado em Paris."
+ },
+ {
+  "title": "Look What You Made Me Do",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "👀🐍⚰️👑",
+  "clues": [
+   "Uma volta sombria e vingativa sobre deixar para trás quem ela era e responder às traições com frieza.",
+   "No clipe, ela sai de um túmulo como zumbi e termina com várias versões antigas de si mesma discutindo.",
+   "Primeiro single de reputation, lançado depois que ela apagou todas as postagens das redes sociais; o clipe estreou no VMA 2017."
+  ],
+  "fact": "Look What You Made Me Do interpola 'I'm Too Sexy', do Right Said Fred, e os integrantes da banda receberam crédito de composição."
+ },
+ {
+  "title": "...Ready For It?",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "🤖⚡🔥❓",
+  "clues": [
+   "Uma atração imediata e magnética por alguém, embalada por uma batida eletrônica pesada e grave.",
+   "É a faixa que abre o álbum, com versos quase falados e um refrão bem mais suave e sonhador.",
+   "No clipe futurista de Joseph Kahn, ela aparece também como uma ciborgue presa em um laboratório."
+  ],
+  "fact": "...Ready For It? estreou num comercial de futebol americano universitário da ABC e foi a música de abertura da reputation Stadium Tour."
+ },
+ {
+  "title": "Delicate",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "💃🌧️🫥💌",
+  "clues": [
+   "Uma paixão no começo, vivida com cautela e ansiedade sobre o que a outra pessoa realmente sente.",
+   "A introdução traz a voz dela processada por efeito eletrônico, dando um tom vulnerável à faixa.",
+   "No clipe, ela recebe um bilhete misterioso, fica invisível e dança descalça por um hotel, pelo metrô e debaixo de chuva."
+  ],
+  "fact": "Delicate liderou a parada Adult Contemporary da Billboard por dez semanas, não consecutivas, em 2018."
+ },
+ {
+  "title": "Gorgeous",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "😍👶🍸😤",
+  "clues": [
+   "Um flerte divertido sobre ficar completamente desconcertada pela atração por alguém que mal conhece.",
+   "Com humor e autodepreciação, a narradora descreve uma noite de festa em que não consegue disfarçar seu interesse.",
+   "A faixa abre com a voz de uma criança, filha de Blake Lively e Ryan Reynolds; saiu como single promocional."
+  ],
+  "fact": "Gorgeous foi composta por Taylor com Max Martin e Shellback e entrou no setlist da reputation Stadium Tour, em 2018."
+ },
+ {
+  "title": "End Game",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "🏁🎮💘🥂",
+  "clues": [
+   "Uma declaração de que ela quer algo sério e duradouro, apesar da fama e das fofocas sobre ela.",
+   "Mistura pop e hip-hop, e em cada trecho um dos artistas comenta a fama e os boatos que carrega na vida amorosa.",
+   "Tem participação de Ed Sheeran e Future; o clipe foi gravado em Miami, Tóquio e Londres."
+  ],
+  "fact": "End Game foi a primeira parceria de Taylor com o rapper Future e a segunda com Ed Sheeran, depois de 'Everything Has Changed'."
+ },
+ {
+  "title": "Getaway Car",
+  "album": "reputation",
+  "year": 2017,
+  "emoji": "🚗💨💰🚔💔",
+  "clues": [
+   "Um romance de rebote, usado como saída de outra relação, contado com culpa e um toque de ironia.",
+   "A letra transforma o romance numa história de assalto, com clima de filme policial e uma traição no final.",
+   "Faixa 9 de reputation, aparece sendo composta com Jack Antonoff no documentário Miss Americana, da Netflix."
+  ],
+  "fact": "Getaway Car foi composta e produzida por Taylor e Jack Antonoff; em 2023, os dois a cantaram juntos de surpresa na Eras Tour, em Nova Jersey."
+ },
+ {
+  "title": "ME!",
+  "album": "Lover",
+  "year": 2019,
+  "emoji": "🦋🐍🌈☂️🐱",
+  "clues": [
+   "Um hino de autoaceitação colorido e animado, celebrando o que torna cada pessoa especial.",
+   "O clipe começa com uma cobra se desfazendo em borboletas e marca a estreia do gato Benjamin Button.",
+   "Primeiro single de Lover, com participação de Brendon Urie, vocalista do Panic! at the Disco."
+  ],
+  "fact": "ME! saltou do 100º para o 2º lugar da Billboard Hot 100 em 2019, o maior salto de uma semana na história da parada."
+ },
+ {
+  "title": "You Need To Calm Down",
+  "album": "Lover",
+  "year": 2019,
+  "emoji": "🏳️‍🌈🍔🍟✌️",
+  "clues": [
+   "Um recado bem-humorado para quem vive destilando ódio e intolerância contra os outros na internet.",
+   "O clipe celebra a comunidade LGBTQIA+ com vários famosos e termina pedindo apoio à Lei da Igualdade nos EUA.",
+   "No clipe, Katy Perry aparece fantasiada de hambúrguer e Taylor, de batata frita, selando a paz entre as duas."
+  ],
+  "fact": "O clipe de You Need To Calm Down venceu Vídeo do Ano e Vídeo com Mensagem Social no VMA 2019."
+ },
+ {
+  "title": "Lover",
+  "album": "Lover",
+  "year": 2019,
+  "emoji": "💕🏠❄️💍🕯️",
+  "clues": [
+   "Uma balada romântica e tranquila sobre a intimidade de um casal que decide ficar junto de vez.",
+   "A ponte soa como votos de casamento, e o clima intimista lembra uma dança lenta a dois.",
+   "Faixa-título do álbum de 2019, ganhou clipe em que o casal vive numa casinha dentro de um globo de neve."
+  ],
+  "fact": "Lover foi escrita apenas por Taylor Swift e coproduzida com Jack Antonoff; em novembro de 2019 ganhou uma versão com Shawn Mendes."
+ },
+ {
+  "title": "The Man",
+  "album": "Lover",
+  "year": 2019,
+  "emoji": "👨‍💼💼🥸🎬",
+  "clues": [
+   "Uma crítica afiada ao machismo e aos padrões duplos que as mulheres enfrentam quando fazem sucesso.",
+   "A letra imagina como a carreira e a vida amorosa dela seriam julgadas se ela fosse de outro gênero.",
+   "Foi o primeiro clipe dirigido só por ela, que aparece irreconhecível com maquiagem e próteses."
+  ],
+  "fact": "No clipe de The Man, Taylor interpreta um personagem masculino cuja voz é de Dwayne 'The Rock' Johnson."
+ },
+ {
+  "title": "Cruel Summer",
+  "album": "Lover",
+  "year": 2019,
+  "emoji": "☀️🔥🤫💔🌴",
+  "clues": [
+   "Uma paixão secreta e arrebatadora, vivida às escondidas e cheia de medo de sair machucada.",
+   "Sua ponte explosiva virou um dos momentos mais gritados pelo público nos shows da Eras Tour.",
+   "Composta com Jack Antonoff e St. Vincent, virou single só em 2023 e chegou ao 1º lugar da Billboard Hot 100."
+  ],
+  "fact": "Cruel Summer virou o 10º número 1 de Taylor na Billboard Hot 100 em outubro de 2023, mais de quatro anos após o lançamento de Lover."
+ },
+ {
+  "title": "cardigan",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "🧥🎹🌲🌊",
+  "clues": [
+   "Uma narradora relembra, com saudade e mágoa, um romance intenso da adolescência que marcou sua vida.",
+   "Faz parte de um triângulo amoroso contado em três faixas do álbum, aqui pelo olhar da garota que foi traída.",
+   "Primeiro single do álbum, tem clipe dirigido por Taylor em que ela entra num piano e vai parar numa floresta e num mar revolto."
+  ],
+  "fact": "cardigan estreou em 1º lugar na Billboard Hot 100 na mesma semana em que folklore estreou no topo da Billboard 200, feito inédito na história."
+ },
+ {
+  "title": "exile",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "🎙️👥💔🚪",
+  "clues": [
+   "Uma canção melancólica sobre um casal que se separou e não consegue concordar sobre o motivo do fim.",
+   "Uma voz masculina abre a faixa, uma feminina responde, e no fim as duas se sobrepõem, cada uma defendendo sua versão.",
+   "Primeira parceria de Taylor com Bon Iver, foi coescrita por Justin Vernon e por Joe Alwyn, sob o pseudônimo William Bowery."
+  ],
+  "fact": "exile estreou em 6º na Billboard Hot 100, primeiro top 10 da carreira de Bon Iver, e foi indicada ao Grammy de Melhor Performance Pop em Duo/Grupo."
+ },
+ {
+  "title": "the 1",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "☝️💭💔✨",
+  "clues": [
+   "Reflexão madura e sem rancor sobre o amor que poderia ter dado certo, mas acabou ficando no passado.",
+   "Já seguindo em frente, a narradora olha para trás com carinho e imagina como teria sido se aquela história tivesse vingado.",
+   "É a faixa de abertura do álbum surpresa lançado na pandemia, composta por Taylor com Aaron Dessner, do The National."
+  ],
+  "fact": "the 1 estreou em 4º na Billboard Hot 100; com cardigan em 1º, Taylor virou a primeira mulher a estrear duas músicas no top 5 ao mesmo tempo."
+ },
+ {
+  "title": "betty",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "👦🙏💔🎸",
+  "clues": [
+   "Uma canção de arrependimento adolescente, com cara de country, sobre pedir perdão depois de uma traição de verão.",
+   "Narrada por James, garoto que tenta reconquistar a namorada depois de ter se envolvido com outra garota.",
+   "Fecha o triângulo amoroso do álbum e estreou ao vivo no ACM Awards de 2020, com Taylor ao violão acompanhada por uma gaita."
+  ],
+  "fact": "Taylor batizou James, Inez e Betty com os nomes das filhas de Blake Lively e Ryan Reynolds; o nome de Betty, nascida em 2019, só ficou público com a música."
+ },
+ {
+  "title": "august",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "🌻☀️🌊💔",
+  "clues": [
+   "Uma lembrança doce e melancólica de um romance passageiro de verão que não tinha como durar.",
+   "Contada pela 'outra' do triângulo amoroso do álbum, a garota que se envolveu com James enquanto ele estava comprometido.",
+   "Coescrita com Jack Antonoff, entrou no medley de Taylor no Grammy de 2021, cantada dentro de uma cabana cenográfica."
+  ],
+  "fact": "Taylor contou que não deu nome à narradora de august, mas que na cabeça dela a chamava de Augustine ou Augusta."
+ },
+ {
+  "title": "the last great american dynasty",
+  "album": "folklore",
+  "year": 2020,
+  "emoji": "🏡🌊🍾💃",
+  "clues": [
+   "Uma história real narrada como crônica, sobre uma mulher excêntrica que escandalizou a alta sociedade de sua época.",
+   "Conta a vida de Rebekah Harkness, socialite e mecenas do balé cujas festas e extravagâncias chocavam os vizinhos ricos.",
+   "No fim, a narradora revela ser a atual dona da mesma mansão em Rhode Island, que Taylor comprou na vida real em 2013."
+  ],
+  "fact": "A Holiday House, em Watch Hill, Rhode Island, foi de Rebekah Harkness e hoje é de Taylor, que fez ali suas famosas festas de 4 de Julho."
+ },
+ {
+  "title": "willow",
+  "album": "evermore",
+  "year": 2020,
+  "emoji": "🌳🧵✨🔮",
+  "clues": [
+   "Uma canção mística sobre desejo e destino, em que a narradora se sente atraída por alguém de forma quase mágica.",
+   "No clipe, Taylor segue um fio dourado por cenas encantadas, incluindo um ritual ao redor de uma fogueira, até reencontrar seu amor.",
+   "Primeiro single do segundo álbum surpresa de 2020, seu clipe retoma o final do vídeo de cardigan, e ambos foram dirigidos por Taylor."
+  ],
+  "fact": "willow estreou em 1º na Hot 100 junto com evermore no topo da Billboard 200: Taylor virou a primeira artista a fazer essa dupla estreia duas vezes."
+ },
+ {
+  "title": "champagne problems",
+  "album": "evermore",
+  "year": 2020,
+  "emoji": "🍾💍💔🎹",
+  "clues": [
+   "Uma balada triste ao piano sobre culpa, em que quem parte o coração do outro é a própria narradora.",
+   "Conta a história de uma jovem que recusa um pedido de casamento que todos ao redor esperavam que ela aceitasse.",
+   "Coescrita com William Bowery, pseudônimo de Joe Alwyn, virou momento de longas ovações na The Eras Tour, com Taylor ao piano."
+  ],
+  "fact": "Na The Eras Tour, champagne problems rendia ovações de vários minutos; em Los Angeles, em 2023, o público aplaudiu por quase oito minutos."
+ },
+ {
+  "title": "no body, no crime",
+  "album": "evermore",
+  "year": 2020,
+  "emoji": "🕵️‍♀️🔍👭⚖️",
+  "clues": [
+   "Uma narrativa de suspense no estilo das baladas country de vingança, com traição, desaparecimento e mistério.",
+   "Uma mulher desconfia que o marido a trai e some; a amiga dela, que narra a história, resolve fazer justiça por conta própria.",
+   "Tem participação de um trio de irmãs da Califórnia, e uma delas, Este, empresta o próprio nome à personagem da história."
+  ],
+  "fact": "Taylor disse que no body, no crime nasceu de sua paixão por podcasts e documentários de true crime, e escolheu Este Haim por saber que ela adoraria."
+ },
+ {
+  "title": "marjorie",
+  "album": "evermore",
+  "year": 2020,
+  "emoji": "👵🎼🕊️💐",
+  "clues": [
+   "Uma homenagem emocionada a uma pessoa da família que já morreu e que marcou profundamente a vida da cantora.",
+   "Taylor presta tributo à avó, que foi cantora de ópera e morreu quando a neta ainda era adolescente.",
+   "Gravações antigas da voz da homenageada, achadas pela mãe de Taylor em discos de vinil, aparecem no final da faixa 13 do álbum."
+  ],
+  "fact": "O lyric video de marjorie traz fotos e vídeos de Marjorie Finlay, incluindo um recorte de jornal sobre sua estreia com a Orquestra Sinfônica de St. Louis."
+ },
+ {
+  "title": "'tis the damn season",
+  "album": "evermore",
+  "year": 2020,
+  "emoji": "🎄🏠🚙💔",
+  "clues": [
+   "Uma canção agridoce sobre voltar à cidade natal nas festas de fim de ano e reencontrar um antigo amor.",
+   "A narradora, que foi embora para correr atrás do sucesso, revive com o ex um romance que já nasce com prazo para acabar.",
+   "Composta com Aaron Dessner para o álbum surpresa de dezembro de 2020, é ligada pelos fãs à personagem de dorothea."
+  ],
+  "fact": "'tis the damn season é a faixa 4 de evermore, álbum lançado de surpresa em 11 de dezembro de 2020, menos de cinco meses depois de folklore."
+ },
+ {
+  "title": "Anti-Hero",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "🚫🦸‍♀️🪞😬",
+  "clues": [
+   "Uma autocrítica cheia de humor ácido sobre insegurança, ansiedade e os próprios defeitos.",
+   "No clipe, ela encara versões alternativas de si mesma, incluindo uma gigante que não cabe dentro de casa.",
+   "Primeiro single de Midnights, estreou no topo da Billboard; o clipe tem Mike Birbiglia e John Early."
+  ],
+  "fact": "Puxado por Anti-Hero, Midnights fez de Taylor a primeira artista a ocupar sozinha todo o top 10 da Billboard Hot 100 na mesma semana."
+ },
+ {
+  "title": "Lavender Haze",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "💜🌫️💑📸",
+  "clues": [
+   "Um hino sobre proteger o relacionamento da pressão do público, dos boatos e dos tabloides.",
+   "O título vem de uma expressão dos anos 1950 para estar apaixonado, que ela ouviu na série Mad Men.",
+   "Faixa de abertura de Midnights, coescrita com a atriz Zoë Kravitz; o clipe tem o modelo Laith Ashley."
+  ],
+  "fact": "Lavender Haze estreou em 2º lugar na Billboard Hot 100, logo atrás de Anti-Hero, e ganhou um clipe escrito e dirigido pela própria Taylor."
+ },
+ {
+  "title": "Karma",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "☯️🔄🐱⚖️",
+  "clues": [
+   "Uma faixa leve e debochada sobre a certeza de que o universo devolve o que cada um faz.",
+   "Por anos, fãs especularam sobre um suposto álbum perdido com esse nome, até a música surgir em 2022.",
+   "Ganhou um remix com a rapper Ice Spice e era a música que encerrava os shows da Eras Tour."
+  ],
+  "fact": "Na Eras Tour, Taylor mudou um verso de Karma para citar o então namorado Travis Kelce e o time dele, o Kansas City Chiefs, levando os estádios ao delírio."
+ },
+ {
+  "title": "Bejeweled",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "💎✨👠👑",
+  "clues": [
+   "Uma faixa sobre recuperar a autoestima e voltar a se sentir valorizada depois de ser ignorada.",
+   "O clipe, dirigido por ela, é uma releitura moderna da Cinderela, recheada de easter eggs escondidos.",
+   "No clipe, Laura Dern faz a madrasta e as irmãs do trio HAIM fazem as meias-irmãs."
+  ],
+  "fact": "No clipe de Bejeweled, Dita Von Teese faz a 'fada-deusa', a maquiadora Pat McGrath é a rainha e o produtor Jack Antonoff aparece como o príncipe."
+ },
+ {
+  "title": "Midnight Rain",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "🕛🌧️💔🎤",
+  "clues": [
+   "Sobre relembrar um amor que terminou porque os dois sonhavam com futuros completamente diferentes.",
+   "A música abre com a voz dela distorcida num tom bem grave, quase irreconhecível.",
+   "Faixa 6 do álbum de 2022, fazia parte do bloco desse disco no repertório fixo da Eras Tour."
+  ],
+  "fact": "Midnight Rain foi escrita e produzida por Taylor e Jack Antonoff e estreou em 5º lugar na Billboard Hot 100, na semana em que Midnights ocupou todo o top 10."
+ },
+ {
+  "title": "You're On Your Own, Kid",
+  "album": "Midnights",
+  "year": 2022,
+  "emoji": "👧🏡📿✨",
+  "clues": [
+   "Um retrato do amadurecimento, da adolescência numa cidade pequena até a vida adulta sob os holofotes.",
+   "A letra passa por uma paixão não correspondida, distúrbios alimentares e a chegada da fama.",
+   "Faixa 5 de Midnights, inspirou os fãs a trocarem pulseiras da amizade nos shows da Eras Tour."
+  ],
+  "fact": "Taylor diz que as faixas 5 de seus álbuns são as mais honestas e vulneráveis; em Midnights, esse posto é de You're On Your Own, Kid."
+ },
+ {
+  "title": "Fortnight",
+  "album": "The Tortured Poets Department",
+  "year": 2024,
+  "emoji": "🗓️🖋️⚗️🖤",
+  "clues": [
+   "Uma história de amor breve e intensa entre duas pessoas presas em vidas infelizes.",
+   "O clipe em preto e branco mostra a cantora internada e alvo de experimentos de cientistas malucos.",
+   "Primeiro single do álbum de 2024, com Post Malone; o clipe tem Ethan Hawke e Josh Charles."
+  ],
+  "fact": "Fortnight estreou em 1º lugar na Billboard Hot 100; no clipe, Ethan Hawke e Josh Charles, colegas de elenco em Sociedade dos Poetas Mortos, são os cientistas."
+ },
+ {
+  "title": "Down Bad",
+  "album": "The Tortured Poets Department",
+  "year": 2024,
+  "emoji": "👽🛸💔⬇️",
+  "clues": [
+   "Uma canção sobre o vazio desesperador que fica depois de um romance que terminou de repente.",
+   "Usa a imagem de uma abdução alienígena como metáfora para alguém que a encantou e depois a largou.",
+   "Na Eras Tour, a apresentação no bloco do álbum de 2024 tinha luzes que imitavam um disco voador."
+  ],
+  "fact": "Down Bad estreou em 2º lugar na Billboard Hot 100, atrás só de Fortnight, na semana em que as faixas de TTPD ocuparam as 14 primeiras posições da parada."
+ },
+ {
+  "title": "I Can Do It With a Broken Heart",
+  "album": "The Tortured Poets Department",
+  "year": 2024,
+  "emoji": "💔💃🎤✨",
+  "clues": [
+   "Sobre sorrir e continuar trabalhando enquanto, por dentro, a pessoa está desmoronando.",
+   "Ela descreve fingir felicidade no palco durante uma turnê gigante, logo após um término.",
+   "O clipe reúne bastidores da Eras Tour e estreou no telão de Wembley no fim da etapa europeia."
+  ],
+  "fact": "O clipe de I Can Do It With a Broken Heart revela truques da Eras Tour, como o mergulho de Taylor sob o palco, onde ela cai num colchão inflável."
+ },
+ {
+  "title": "So Long, London",
+  "album": "The Tortured Poets Department",
+  "year": 2024,
+  "emoji": "👋🇬🇧💔🚂",
+  "clues": [
+   "Um lamento sobre uma relação de anos que se desfez, mesmo com ela lutando sozinha para salvá-la.",
+   "É vista como o oposto triste de uma faixa animada do Lover sobre um namorado britânico.",
+   "Faixa 5 do álbum de 2024, produzida com Aaron Dessner e ligada pelos fãs ao fim do namoro com Joe Alwyn."
+  ],
+  "fact": "So Long, London abre com vozes de Taylor empilhadas a cappella, que críticos compararam a um coral de igreja com os sinos típicos de Londres."
+ },
+ {
+  "title": "Florida!!!",
+  "album": "The Tortured Poets Department",
+  "year": 2024,
+  "emoji": "🐊🌴🏃‍♀️🚗",
+  "clues": [
+   "Uma fuga dramática para recomeçar do zero e se esconder depois de um coração partido.",
+   "A canção trata um destino ensolarado como esconderijo para quem quer se reinventar com nova identidade.",
+   "Dueto com Florence Welch, cantado ao vivo pela primeira vez em Wembley, em agosto de 2024."
+  ],
+  "fact": "Taylor contou que Florida!!! nasceu de assistir ao Dateline: muitos casos mostram gente que foge para a Flórida para recomeçar ou se esconder."
+ },
+ {
+  "title": "The Fate of Ophelia",
+  "album": "The Life of a Showgirl",
+  "year": 2025,
+  "emoji": "🌊🥀🎭📖",
+  "clues": [
+   "Uma canção de amor sobre ser resgatada de um final trágico e solitário por alguém que chegou a tempo.",
+   "A letra faz referência a uma personagem trágica de Hamlet, de Shakespeare, que enlouquece e se afoga.",
+   "Faixa de abertura e 1º single do álbum de 2025, estreou no topo da Billboard; o clipe estreou nos cinemas."
+  ],
+  "fact": "Escrito e dirigido por Taylor, o clipe de The Fate of Ophelia começa com ela saindo de uma recriação do quadro de Ofélia e traz os dançarinos da Eras Tour."
+ },
+ {
+  "title": "Elizabeth Taylor",
+  "album": "The Life of a Showgirl",
+  "year": 2025,
+  "emoji": "🎬💍💎🎞️",
+  "clues": [
+   "Uma reflexão sobre amor e fama sob os holofotes, usando como espelho a vida de uma diva do cinema.",
+   "A estrela que inspira a faixa se casou oito vezes, duas delas com o mesmo ator, Richard Burton.",
+   "Faixa 2 do álbum de 2025, foi trabalhada nas rádios como terceiro single do disco, em 2026."
+  ],
+  "fact": "Taylor Swift chamou Elizabeth Taylor de uma das showgirls mais quintessenciais e disse que a faixa trata de suas questões com a fama pela ótica da vida da atriz."
+ },
+ {
+  "title": "Opalite",
+  "album": "The Life of a Showgirl",
+  "year": 2025,
+  "emoji": "✨🌈💎😊",
+  "clues": [
+   "Uma faixa radiante sobre deixar para trás uma fase triste e criar a própria felicidade.",
+   "O título é o nome de uma gema feita pelo homem, que ela ligou à pedra do mês de nascimento do noivo.",
+   "O clipe imita infomerciais antigos de TV e tem Domhnall Gleeson, Lewis Capaldi e Graham Norton no elenco."
+  ],
+  "fact": "O clipe de Opalite, segundo single do álbum, nasceu de uma piada de Domhnall Gleeson no Graham Norton Show, e os convidados do programa viraram elenco."
+ },
+ {
+  "title": "The Life of a Showgirl",
+  "album": "The Life of a Showgirl",
+  "year": 2025,
+  "emoji": "💃🪶🎭✨",
+  "clues": [
+   "Uma história sobre o preço da fama, contada como um alerta de quem já passou por tudo nos palcos.",
+   "A narradora conhece uma artista fictícia chamada Kitty, que a alerta sobre o lado duro da carreira.",
+   "Faixa que fecha o álbum de 2025, é um dueto com Sabrina Carpenter, que abriu shows da Eras Tour."
+  ],
+  "fact": "O final da faixa traz o som da plateia do último show da Eras Tour, em Vancouver, em dezembro de 2024, com a despedida de Taylor ao público."
+ },
+ {
+  "title": "Father Figure",
+  "album": "The Life of a Showgirl",
+  "year": 2025,
+  "emoji": "👨‍👧🕴️💼⚖️",
+  "clues": [
+   "Uma canção sobre poder, proteção e manipulação numa relação entre mentor e protegida.",
+   "A história mostra um homem poderoso que acolhe uma jovem promessa e cobra lealdade, até o poder mudar de lado.",
+   "Interpola um sucesso de George Michael do álbum Faith, de 1987, e o espólio do cantor aprovou publicamente a homenagem."
+  ],
+  "fact": "Taylor disse que Father Figure fala de dinâmicas de poder entre mentor e protegido, que se identifica com os dois lados e que se inspirou em Logan Roy, de Succession."
+ }
+];
+const SITE = "https://starryfairy16-web.github.io/fliperama-swiftie/";
+const MAX = 6;
+const LAUNCH = Date.UTC(2026, 9, 13); // dia 1 = 13/10/2026
+const PREVIEW_SECS = 8;
+// No site (GitHub Pages) o jogo toca a prévia oficial de 30 s da Apple Music; nos links do Claude o áudio externo é bloqueado.
+const AUDIO_MODE = true;
+const CLIP_SECS = [1, 2, 4, 7, 11, 16];
+
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+};
+
+// Som: trilhas originais no clima de cada era, geradas na hora com Web Audio (nenhum arquivo de áudio,
+// nenhuma melodia da Taylor). O navegador só libera som depois de um toque, então tudo começa no primeiro clique.
+const Sound = (() => {
+  let ctx = null, master, musicBus, sfxBus, noise, timer = null, nextAt = 0, step = 0, switching = null;
+  let style = "menu", target = "menu";
+  const prefs = { music: store.get("adivinhe-musica", true), sfx: store.get("adivinhe-efeitos", true) };
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+
+  function init() {
+    if (ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    try { ctx = new AC(); } catch { return false; }
+    master = ctx.createGain(); master.gain.value = 0.9;
+    const comp = ctx.createDynamicsCompressor();
+    master.connect(comp).connect(ctx.destination);
+    musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = prefs.sfx ? 1 : 0; sfxBus.connect(master);
+    noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noise.getChannelData(0);
+    for (let k = 0; k < d.length; k++) d[k] = Math.random() * 2 - 1;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) ctx.suspend(); else ctx.resume();
+    });
+    return true;
+  }
+
+  // Instrumentos básicos
+  function voice({ freq, type = "triangle", at, dur, vol, attack = 0.005, cutoff, detune = 0, glide, filterEnv, bus = musicBus }) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, at); o.detune.value = detune;
+    if (glide) o.frequency.exponentialRampToValueAtTime(glide, at + dur * 0.6);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    let out = o.connect(g);
+    if (cutoff || filterEnv) {
+      const f = ctx.createBiquadFilter(); f.type = "lowpass";
+      if (filterEnv) {
+        f.frequency.setValueAtTime(filterEnv[0], at);
+        f.frequency.linearRampToValueAtTime(filterEnv[1], at + 0.04);
+        f.frequency.linearRampToValueAtTime(filterEnv[2], at + dur);
+      } else f.frequency.value = cutoff;
+      out = g.connect(f);
+    }
+    out.connect(bus);
+    o.start(at); o.stop(at + dur + 0.05);
+  }
+  function noiseHit({ at, dur, vol, type = "highpass", freq = 7000, q = 1, bus = musicBus }) {
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noise; f.type = type; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f).connect(g).connect(bus);
+    src.start(at, Math.random() * 0.7); src.stop(at + dur + 0.02);
+  }
+  const ins = {
+    pluck: (n, at, vol = 0.06, dur = 0.3, type = "triangle", cutoff = 3000) => voice({ freq: midi(n), type, at, dur, vol, cutoff }),
+    strum: (notes, at, vol = 0.04, gap = 0.012, dur = 0.35) => notes.forEach((n, k) => voice({ freq: midi(n), at: at + k * gap, dur, vol, cutoff: 2600 })),
+    pad: (notes, at, dur, vol = 0.03, type = "sawtooth", cutoff = 1000, attack = 0.25) => notes.forEach(n => {
+      voice({ freq: midi(n), type, at, dur, vol, attack, cutoff, detune: -7 });
+      voice({ freq: midi(n), type, at, dur, vol, attack, cutoff, detune: 7 });
+    }),
+    bass: (n, at, dur = 0.3, vol = 0.15, type = "sine", cutoff) => voice({ freq: midi(n), type, at, dur, vol, attack: 0.01, cutoff }),
+    sub808: (n, at, dur = 0.7, vol = 0.3) => voice({ freq: midi(n) * 1.5, glide: midi(n), type: "sine", at, dur, vol }),
+    kick: (at, vol = 0.45) => voice({ freq: 130, glide: 42, type: "sine", at, dur: 0.28, vol, attack: 0.002 }),
+    snare: (at, vol = 0.12, dur = 0.16) => { noiseHit({ at, dur, vol, type: "bandpass", freq: 1900, q: 0.7 }); voice({ freq: 190, at, dur: 0.08, vol: vol * 0.6 }); },
+    clap: (at, vol = 0.1) => [0, 0.012, 0.024].forEach(dt => noiseHit({ at: at + dt, dur: 0.09, vol, type: "bandpass", freq: 1400, q: 1.2 })),
+    hat: (at, vol = 0.025, dur = 0.04) => noiseHit({ at, dur, vol }),
+    tick: (at, vol = 0.06) => noiseHit({ at, dur: 0.018, vol, freq: 2500 }),
+    snap: (at, vol = 0.08) => noiseHit({ at, dur: 0.05, vol, type: "bandpass", freq: 2800, q: 2 }),
+    bell: (n, at, vol = 0.04, dur = 1.2) => { voice({ freq: midi(n), type: "sine", at, dur, vol }); voice({ freq: midi(n) * 2.76, type: "sine", at, dur: dur * 0.4, vol: vol * 0.35 }); },
+    piano: (n, at, vol = 0.07, dur = 1.4) => { voice({ freq: midi(n), at, dur, vol, attack: 0.004, cutoff: 2400 }); voice({ freq: midi(n) * 2, type: "sine", at, dur: dur * 0.5, vol: vol * 0.25 }); },
+    epiano: (notes, at, vol = 0.03, dur = 1.2) => notes.forEach(n => { voice({ freq: midi(n), type: "sine", at, dur, vol, attack: 0.01 }); voice({ freq: midi(n), at, dur: dur * 0.3, vol: vol * 0.4, detune: 5 }); }),
+    brass: (notes, at, dur = 0.2, vol = 0.035) => notes.forEach(n => voice({ freq: midi(n), type: "sawtooth", at, dur, vol, attack: 0.015, filterEnv: [400, 2600, 700] })),
+  };
+
+  // Uma trilha por era. unit = subdivisão do passo (8 = colcheia, 16 = semicolcheia); per = passos por compasso;
+  // gain equilibra o volume entre as trilhas.
+  const T = (root, ...tri) => ({ root, tri });
+  const STYLES = {
+    // Tela inicial e resultado: pop leve
+    menu: { gain: 1.0, bpm: 96, unit: 8, per: 8, bars: [T(48, 60, 64, 67), T(43, 59, 62, 67), T(45, 60, 64, 69), T(41, 60, 65, 69), T(45, 60, 64, 69), T(41, 60, 65, 69), T(48, 60, 64, 67), T(43, 59, 62, 67)],
+      play(i, b, n, at, d) {
+        const notes = [...b.tri, b.tri[0] + 12];
+        if (i === 0) ins.pad(b.tri.map(x => x - 12), at, d * 8, 0.025, "sine", 900);
+        if (i === 0 || i === 4) ins.bass(b.root - 12, at, d * 3, 0.16);
+        ins.pluck(notes[[0, 1, 2, 3, 2, 1, 2, 3][i]] + 12, at, 0.05, 0.28, "triangle", 3200);
+        if (i % 2) ins.hat(at, 0.02, 0.06);
+      } },
+    // Taylor Swift (2006): country de violão, baixo "bum-tchá"
+    country: { gain: 1.35, bpm: 112, unit: 16, per: 16, bars: [T(43, 55, 59, 62, 67), T(48, 55, 60, 64, 67), T(50, 57, 62, 66, 69), T(43, 55, 59, 62, 67)],
+      play(i, b, n, at) {
+        if (i === 0) ins.bass(b.root, at, 0.35, 0.17);
+        if (i === 8) ins.bass(b.root + 7, at, 0.35, 0.15);
+        if (i === 4 || i === 12) { ins.strum(b.tri, at, 0.04); ins.snare(at, 0.05, 0.1); }
+        if (i === 6 || i === 14) ins.strum(b.tri.slice(1), at, 0.025);
+        if (i % 2 === 0) ins.hat(at, 0.012);
+      } },
+    // Fearless: banjo dedilhado de conto de fadas
+    banjo: { gain: 1.5, bpm: 100, unit: 16, per: 16, bars: [T(50, 62, 66, 69), T(45, 61, 64, 69), T(47, 62, 66, 71), T(43, 62, 67, 71)],
+      play(i, b, n, at, d) {
+        const notes = [...b.tri, b.tri[0] + 12];
+        ins.pluck(notes[[0, 1, 3, 0, 1, 3, 0, 1, 3, 0, 1, 3, 0, 2, 3, 1][i]], at, 0.035, 0.2, "square", 2400);
+        if (i === 0 || i === 8) { ins.bass(b.root, at, 0.4, 0.15); ins.kick(at, 0.25); }
+        if (i === 0) ins.pad(b.tri.map(x => x - 12), at, d * 16, 0.012, "sine", 800, 0.4);
+        if (i === 4 || i === 12) ins.snare(at, 0.04, 0.08);
+      } },
+    // Speak Now: valsa encantada com sininhos
+    waltz: { gain: 1.55, bpm: 138, unit: 8, per: 6, bars: [T(48, 60, 64, 67), T(45, 60, 64, 69), T(41, 60, 65, 69), T(43, 59, 62, 67)],
+      play(i, b, n, at) {
+        if (i === 0) { ins.bass(b.root, at, 0.5, 0.16); ins.bell(b.tri[2] + 12, at, 0.035, 1.4); }
+        if (i === 2 || i === 4) ins.epiano(b.tri, at, 0.022, 0.35);
+        if (i === 3) ins.bell(b.tri[1] + 12, at, 0.025, 1);
+        if (i === 5 && n % 2) ins.bell(b.tri[0] + 24, at, 0.02, 0.8);
+      } },
+    // Red: pop-rock de estrada, guitarra abafada e palmas
+    drive: { gain: 0.6, bpm: 126, unit: 16, per: 16, bars: [T(45, 57, 60, 64), T(41, 57, 60, 65), T(48, 55, 60, 64), T(43, 55, 59, 62)],
+      play(i, b, n, at, d) {
+        if (i % 2 === 0) {
+          ins.bass(b.root, at, d * 1.6, 0.06, "sawtooth", 900);
+          ins.pluck(b.root + 12, at, 0.025, d * 1.5, "sawtooth", 1200);
+          ins.pluck(b.root + 19, at, 0.02, d * 1.5, "sawtooth", 1200);
+        }
+        if (i === 0 || i === 8 || i === 10) ins.kick(at, 0.4);
+        if (i === 4 || i === 12) ins.clap(at, 0.09);
+        if (i % 4 === 3) ins.pluck(b.tri[(i >> 2) % 3] + 12, at, 0.03, 0.2, "square", 2800);
+        if (i % 2 === 1) ins.hat(at, 0.015);
+      } },
+    // 1989: synth-pop oitentista, caixa grandona
+    synthpop: { gain: 0.45, bpm: 118, unit: 16, per: 16, bars: [T(41, 60, 65, 69), T(48, 60, 64, 67), T(43, 59, 62, 67), T(45, 60, 64, 69)],
+      play(i, b, n, at, d) {
+        if (i % 4 === 0) ins.kick(at, 0.45);
+        if (i === 4 || i === 12) ins.snare(at, 0.16, 0.22);
+        if (i % 2 === 0) {
+          ins.bass(b.root - 12 + (i % 4 ? 12 : 0), at, d * 1.8, 0.08, "sawtooth", 700);
+          ins.pluck(b.tri[[0, 1, 2, 1][(i / 2) % 4]] + 12, at, 0.028, 0.18, "square", 3800);
+        }
+        if (i === 0) ins.pad(b.tri, at, d * 16, 0.012, "sawtooth", 1500, 0.1);
+        ins.hat(at, i % 2 ? 0.01 : 0.02);
+      } },
+    // reputation: escuro, 808 grave e chimbal acelerado
+    trap: { gain: 0.5, bpm: 76, unit: 16, per: 16, bars: [T(45, 57, 60, 64), T(41, 57, 60, 65), T(43, 55, 59, 62), T(40, 55, 59, 64)],
+      play(i, b, n, at, d) {
+        if (i === 0 || i === 10) { ins.sub808(b.root - 12, at, i ? d * 5 : d * 9, 0.3); ins.kick(at, 0.35); }
+        if (i === 8) { ins.clap(at, 0.11); ins.snare(at, 0.06, 0.2); }
+        if (i === 0) ins.pad(b.tri, at, d * 16, 0.014, "sawtooth", 600, 0.3);
+        if (n % 2 === 1 && i >= 12) { ins.hat(at, 0.02, 0.03); ins.hat(at + d / 2, 0.015, 0.03); }
+        else if (i % 2 === 0) ins.hat(at, 0.022, 0.035);
+        if (i === 0 && n % 4 === 0) ins.bell(b.tri[0] + 12, at, 0.025, 2);
+      } },
+    // Lover: pop sonhador, piano elétrico e estalos de dedo
+    dreamy: { gain: 1.55, bpm: 92, unit: 16, per: 16, bars: [T(48, 60, 64, 67, 71), T(45, 60, 64, 67, 69), T(41, 60, 64, 65, 69), T(43, 59, 62, 64, 67)],
+      play(i, b, n, at) {
+        if (i === 0 || i === 6) ins.epiano(b.tri, at, 0.022, 1.3);
+        if (i === 0 || i === 10) ins.bass(b.root, at, 0.5, 0.14);
+        if (i === 0 || i === 8) ins.kick(at, 0.22);
+        if (i === 4 || i === 12) ins.snap(at, 0.07);
+        if (i === 14) ins.bell(b.tri[3] + 12, at, 0.02, 1);
+        if (i % 2 === 1) ins.hat(at, 0.008);
+      } },
+    // folklore: piano calmo, sem bateria
+    piano: { gain: 1.35, bpm: 74, unit: 16, per: 16, bars: [T(40, 55, 59, 64), T(36, 55, 60, 64), T(43, 55, 59, 62), T(38, 54, 57, 62)],
+      play(i, b, n, at, d) {
+        const notes = [...b.tri, b.tri[0] + 12];
+        if (i === 0) { ins.piano(b.root, at, 0.09, 2.6); ins.pad(b.tri, at, d * 16, 0.008, "sine", 700, 0.6); }
+        if (i % 2 === 0) ins.piano(notes[[0, 1, 2, 3, 2, 1, 2, 1][i / 2]] + 12, at, 0.045, 1.4);
+        if (i === 10 && n % 2) ins.piano(b.tri[2] + 24, at, 0.02, 1.2);
+      } },
+    // evermore: violão dedilhado em 6/8, clima de floresta
+    fingerpick: { gain: 1.7, bpm: 84, unit: 8, per: 6, bars: [T(38, 57, 62, 65), T(34, 58, 62, 65), T(41, 57, 60, 65), T(36, 55, 60, 64)],
+      play(i, b, n, at, d) {
+        const notes = [...b.tri, b.tri[0] + 12], pick = [null, 1, 2, null, 3, 2][i];
+        if (i === 0) { ins.pluck(b.root + 12, at, 0.08, 1.2, "triangle", 1600); ins.pad(b.tri, at, d * 6, 0.008, "sine", 700, 0.5); }
+        if (i === 3) { ins.pluck(b.root + 19, at, 0.06, 1, "triangle", 1600); ins.hat(at, 0.01, 0.08); }
+        if (pick !== null) ins.pluck(notes[pick] + 12, at, 0.04, 0.8, "triangle", 2600);
+      } },
+    // Midnights: sintetizador noturno pulsante
+    night: { gain: 0.8, bpm: 96, unit: 16, per: 16, bars: [T(41, 56, 60, 65), T(37, 56, 61, 65), T(44, 56, 60, 63), T(39, 55, 58, 63)],
+      play(i, b, n, at, d) {
+        if (i % 4 === 0) { ins.pad(b.tri, at + 0.03, d * 3.6, 0.014, "sawtooth", 1300, 0.1); ins.kick(at, 0.28); }
+        if (i % 4 === 2) ins.bass(b.root - 12, at, d * 1.6, 0.1, "sawtooth", 500);
+        if (i === 6 && n % 2) ins.bell(b.tri[2] + 24, at, 0.02, 1.4);
+        if (i === 12) ins.snap(at, 0.04);
+        if (i % 2 === 1) ins.hat(at, 0.01);
+      } },
+    // The Tortured Poets Department: máquina de escrever e piano abafado
+    typewriter: { gain: 1.9, bpm: 100, unit: 16, per: 16, bars: [T(48, 60, 64, 67), T(40, 59, 64, 67), T(45, 60, 64, 69), T(41, 60, 65, 69)],
+      play(i, b, n, at) {
+        if ([0, 3, 6, 8, 11, 14].includes(i)) ins.tick(at, 0.05);
+        if (i === 0 && n % 4 === 0) ins.bell(96, at, 0.025, 0.9);
+        if (i === 0 || i === 8) { ins.epiano(b.tri, at, 0.02, 0.9); ins.kick(at, 0.22); }
+        if (i === 0 || i === 7 || i === 8) ins.bass(b.root, at, 0.3, 0.12);
+        if (i === 4 || i === 12) ins.snare(at, 0.04, 0.1);
+      } },
+    // The Life of a Showgirl: metais de espetáculo e baixo andante
+    showtime: { gain: 0.75, bpm: 124, unit: 16, per: 16, bars: [T(48, 60, 64, 67), T(45, 61, 64, 67), T(50, 62, 65, 69), T(43, 59, 62, 65)],
+      play(i, b, n, at, d) {
+        if (i % 4 === 0) ins.bass(b.root + [0, 7, 12, 7][i / 4], at, d * 3.5, 0.13, "triangle", 900);
+        if (i === 0 || i === 6 || i === 12) ins.brass(b.tri, at, i === 12 ? 0.3 : 0.16, 0.03);
+        if (i === 0 || i === 8) ins.kick(at, 0.35);
+        if (i === 4 || i === 12) ins.clap(at, 0.09);
+        if (i % 2 === 0) ins.hat(at, 0.014);
+        if (i === 15 && n % 4 === 3) ins.bell(b.tri[0] + 24, at, 0.03, 1);
+      } },
+  };
+  const ERA_STYLE = {
+    "Taylor Swift": "country", "Fearless": "banjo", "Speak Now": "waltz", "Red": "drive", "1989": "synthpop",
+    "reputation": "trap", "Lover": "dreamy", "folklore": "piano", "evermore": "fingerpick", "Midnights": "night",
+    "The Tortured Poets Department": "typewriter", "The Life of a Showgirl": "showtime",
+  };
+
+  function tick() {
+    const st = STYLES[style], d = 60 / st.bpm / (st.unit === 8 ? 2 : 4);
+    while (nextAt < ctx.currentTime + 0.15) {
+      const n = Math.floor(step / st.per);
+      st.play(step % st.per, st.bars[n % st.bars.length], n, nextAt, d);
+      nextAt += d; step++;
+    }
+  }
+  function fadeIn(secs) {
+    const now = ctx.currentTime;
+    musicBus.gain.cancelScheduledValues(now);
+    musicBus.gain.setValueAtTime(0.0001, now);
+    musicBus.gain.exponentialRampToValueAtTime(0.8 * STYLES[style].gain, now + secs);
+  }
+  function startMusic() {
+    if (!prefs.music || !init() || timer) return;
+    ctx.resume();
+    style = target; step = 0; nextAt = ctx.currentTime + 0.1;
+    fadeIn(1.2);
+    timer = setInterval(tick, 25); tick();
+  }
+  function stopMusic() {
+    if (!ctx || !timer) return;
+    clearInterval(timer); timer = null;
+    musicBus.gain.cancelScheduledValues(ctx.currentTime);
+    musicBus.gain.setValueAtTime(musicBus.gain.value, ctx.currentTime);
+    musicBus.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+  }
+  // Troca de trilha com um fade curto: abaixa, troca o estilo, volta.
+  function setStyle(name) {
+    if (!STYLES[name] || name === target) return;
+    target = name;
+    if (!timer) return;
+    const now = ctx.currentTime;
+    musicBus.gain.cancelScheduledValues(now);
+    musicBus.gain.setValueAtTime(Math.max(musicBus.gain.value, 0.0001), now);
+    musicBus.gain.linearRampToValueAtTime(0.0001, now + 0.3);
+    clearTimeout(switching);
+    switching = setTimeout(() => {
+      switching = null;
+      if (!timer) return;
+      style = target; step = 0; nextAt = ctx.currentTime + 0.05;
+      fadeIn(0.5);
+    }, 350);
+  }
+
+  // Prévia sob demanda: toca a trilha de uma era por alguns segundos, mesmo com a música de fundo desligada.
+  let previewTimer = null;
+  function preview(album, secs, onEnd) {
+    if (!init()) return false;
+    ctx.resume();
+    clearTimeout(previewTimer); clearTimeout(switching); switching = null;
+    if (timer) { clearInterval(timer); timer = null; }
+    style = target = ERA_STYLE[album] || "menu"; step = 0; nextAt = ctx.currentTime + 0.05;
+    fadeIn(0.3);
+    timer = setInterval(tick, 25); tick();
+    previewTimer = setTimeout(() => { stopMusic(); if (onEnd) onEnd(); }, secs * 1000);
+    return true;
+  }
+  function stopPreview() { clearTimeout(previewTimer); stopMusic(); }
+
+  const sfx = fn => { if (prefs.sfx && init()) { ctx.resume(); fn(ctx.currentTime + 0.01); } };
+  const PENTA = [72, 74, 76, 79, 81, 84, 86, 88];
+  const fx = (n, at, dur, vol, type = "triangle", cutoff) => voice({ freq: midi(n), type, at, dur, vol, cutoff, bus: sfxBus });
+
+  return {
+    prefs,
+    unlock() { if ((prefs.music || prefs.sfx) && init()) ctx.resume(); },
+    startMusic,
+    setStyle,
+    preview,
+    stopPreview,
+    styleForAlbum: album => ERA_STYLE[album] || "menu",
+    setMusic(on) { prefs.music = on; store.set("adivinhe-musica", on); on ? startMusic() : stopMusic(); },
+    setSfx(on) { prefs.sfx = on; store.set("adivinhe-efeitos", on); if (ctx) sfxBus.gain.value = on ? 1 : 0; },
+    hint: () => sfx(t => fx(79, t, 0.18, 0.12)),
+    correct: () => sfx(t => [76, 81, 88].forEach((n, k) => fx(n, t + k * 0.09, 0.35, 0.16))),
+    wrong: () => sfx(t => [55, 50].forEach((n, k) => fx(n, t + k * 0.16, 0.3, 0.06, "sawtooth", 900))),
+    beads: count => sfx(t => { for (let k = 0; k < Math.min(count, 28); k++) fx(PENTA[(k * 3) % PENTA.length] + 12, t + 0.12 + k * 0.035, 0.07, 0.05, "sine"); }),
+    fanfare: good => sfx(t => (good ? [60, 64, 67, 72, 76] : [60, 64, 67]).forEach((n, k) => fx(n + 12, t + k * 0.12, 0.5, 0.14))),
+  };
+})();
+
+
+const ERA_COLOR = {
+  "Taylor Swift": "#2f9e78", "Fearless": "#d4a21c", "Speak Now": "#8a4fbf", "Red": "#c4253b", "1989": "#5ba8d4",
+  "reputation": "#4b4b55", "Lover": "#ee82b5", "folklore": "#8e9096", "evermore": "#b5683a", "Midnights": "#3a4db0",
+  "The Tortured Poets Department": "#d6cbb9", "The Life of a Showgirl": "#ee8a26",
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+function inkOn(hex) {
+  const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#1d1420" : "#ffffff";
+}
+const eraColor = album => ERA_COLOR[album] || "#999999";
+function bracelet(text, color) {
+  let d = 0;
+  return text.toUpperCase().split(/\s+/).filter(Boolean).map(word =>
+    `<span class="word">${[...word].map(ch => `<span class="bead" style="--c:${color};--t:${inkOn(color)};--d:${d++}">${esc(ch)}</span>`).join("")}</span>`
+  ).join("");
+}
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const songBy = title => SONGS.find(s => s.title === title);
+const spotifyUrl = t => `https://open.spotify.com/search/${encodeURIComponent(`${t} Taylor Swift`)}`;
+const youtubeUrl = t => `https://www.youtube.com/results?search_query=${encodeURIComponent(`Taylor Swift ${t}`)}`;
+const ordinal = n => `${n}ª`;
+
+// Música do dia: uma ordem embaralhada fixa, que percorre todas as músicas antes de repetir.
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function seededOrder(seed) {
+  const rnd = mulberry32(seed), idx = SONGS.map((_, i) => i);
+  for (let k = idx.length - 1; k > 0; k--) { const j = Math.floor(rnd() * (k + 1)); [idx[k], idx[j]] = [idx[j], idx[k]]; }
+  return idx;
+}
+function todayNumber() {
+  const d = new Date();
+  return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - LAUNCH) / 86400000) + 1;
+}
+function songForDay(n) {
+  const len = SONGS.length, k = n - 1;
+  const cycle = Math.floor(k / len), pos = ((k % len) + len) % len;
+  return SONGS[seededOrder(1989 + cycle)[pos]];
+}
+
+// Pistas na ordem em que são liberadas
+const STEPS_CLUES = [
+  { key: "emoji" },
+  { key: "dica1", name: "Dica 1" },
+  { key: "trilha", name: "Trilha da era" },
+  { key: "dica2", name: "Dica 2" },
+  { key: "album", name: "Álbum e ano" },
+  { key: "dica3", name: "Dica 3" },
+];
+const STEPS_AUDIO = [
+  { key: "audio" },
+  { key: "emoji", name: "Emojis" },
+  { key: "dica1", name: "Dica 1" },
+  { key: "dica2", name: "Dica 2" },
+  { key: "album", name: "Álbum e ano" },
+  { key: "dica3", name: "Dica 3" },
+];
+let audioOn = AUDIO_MODE;
+const steps = () => audioOn ? STEPS_AUDIO : STEPS_CLUES;
+
+function freshDaily() {
+  const day = todayNumber();
+  const saved = store.get("seis-contas-dia", null);
+  const answer = songForDay(day).title;
+  if (saved && saved.day === day && saved.answer === answer && Array.isArray(saved.guesses)) return { mode: "daily", day, answer, guesses: saved.guesses, done: !!saved.done, won: !!saved.won };
+  return { mode: "daily", day, answer, guesses: [], done: false, won: false };
+}
+function freshFree(avoid) {
+  const pool = SONGS.filter(s => s.title !== avoid);
+  return { mode: "free", day: todayNumber(), answer: pool[Math.floor(Math.random() * pool.length)].title, guesses: [], done: false, won: false };
+}
+let state = freshDaily();
+let lastUnlocked = 0;
+
+function save() {
+  if (state.mode === "daily") store.set("seis-contas-dia", { day: state.day, answer: state.answer, guesses: state.guesses, done: state.done, won: state.won });
+}
+
+const answerSong = () => songBy(state.answer);
+function resultOf(g) {
+  if (g.type === "skip") return "skip";
+  const a = answerSong(), s = songBy(g.title);
+  if (!s) return "bad";
+  if (s.title === a.title) return "ok";
+  return s.album === a.album ? "near" : "bad";
+}
+const unlockedCount = () => state.done ? steps().length : Math.min(state.guesses.length + 1, steps().length);
+const SYMBOL = { ok: "✓", near: "~", bad: "✕", skip: "–" };
+
+// Estatísticas (só da música do dia)
+const emptyStats = () => ({ played: 0, wins: 0, streak: 0, best: 0, dist: [0, 0, 0, 0, 0, 0], lastDay: null, lastWinDay: null });
+function recordStats() {
+  const st = store.get("seis-contas-stats", emptyStats());
+  if (st.lastDay === state.day) return;
+  st.played++; st.lastDay = state.day;
+  if (state.won) {
+    st.wins++; st.dist[state.guesses.length - 1]++;
+    st.streak = st.lastWinDay === state.day - 1 ? st.streak + 1 : 1;
+    st.best = Math.max(st.best, st.streak); st.lastWinDay = state.day;
+  } else st.streak = 0;
+  store.set("seis-contas-stats", st);
+}
+
+/* ---------- Desenho da tela ---------- */
+
+function renderTries() {
+  $("tries").innerHTML = Array.from({ length: MAX }, (_, k) => {
+    const g = state.guesses[k];
+    if (g) { const r = resultOf(g); return `<span class="try filled ${r}" title="Tentativa ${k + 1}">${SYMBOL[r]}</span>`; }
+    const now = !state.done && k === state.guesses.length;
+    return `<span class="try ${now ? "now" : ""}">${k + 1}</span>`;
+  }).join("");
+}
+
+function renderClues() {
+  const song = answerSong(), open = unlockedCount();
+  const color = eraColor(song.album);
+  const item = (step, idx) => {
+    const fresh = idx === open - 1 && open > lastUnlocked ? " fresh" : "";
+    if (idx >= open) return `<li class="clue locked">${step.name} · libera na ${ordinal(idx + 1)} tentativa</li>`;
+    if (step.key === "trilha") {
+      return `<li class="clue${fresh}"><div class="listen-row">
+        <button type="button" class="ring" id="playBtn" aria-label="Tocar a trilha da era">
+          <svg viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="27"/><circle class="prog" id="ringProg" cx="30" cy="30" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
+          <span class="glyph" id="ringGlyph">${ICON.play}</span>
+        </button>
+        <div><span class="label">Trilha da era</span><p>Toque para ouvir uma trilha original no clima do álbum desta música.</p></div>
+      </div></li>`;
+    }
+    if (step.key === "emoji") return `<li class="clue${fresh}"><span class="label">Emojis</span><span class="emoji" role="img" aria-label="Pista em emojis" style="text-align:left">${esc(song.emoji)}</span></li>`;
+    if (step.key === "album") return `<li class="clue${fresh}"><span class="label">Álbum e ano</span><span class="era-line"><span class="dot" style="--c:${color}"></span>${esc(song.album)} · ${song.year}</span></li>`;
+    const n = Number(step.key.slice(-1));
+    return `<li class="clue${fresh}"><span class="label">${step.name}</span>${esc(song.clues[n - 1])}</li>`;
+  };
+  const top = audioOn ? playerHTML() : `<div class="emoji" role="img" aria-label="Pista em emojis">${esc(song.emoji)}</div>`;
+  $("cluesPanel").innerHTML = `
+    <span class="label">Que música é essa?</span>
+    ${top}
+    <ol class="clues">${steps().slice(1).map((st, k) => item(st, k + 1)).join("")}</ol>`;
+  lastUnlocked = open;
+  const play = $("playBtn");
+  if (play) play.addEventListener("click", togglePreview);
+  const clip = $("clipBtn");
+  if (clip) { clip.addEventListener("click", toggleClip); renderClipState(); }
+}
+
+function renderRows() {
+  const a = answerSong();
+  $("rows").innerHTML = Array.from({ length: MAX }, (_, k) => {
+    const g = state.guesses[k];
+    if (!g) return `<div class="row empty ${!state.done && k === state.guesses.length ? "now" : ""}"></div>`;
+    const r = resultOf(g);
+    if (r === "skip") return `<div class="row skip">Pulou</div>`;
+    const s = songBy(g.title);
+    if (r === "ok") return `<div class="row ok"><span class="title">✓ ${esc(s.title)}</span></div>`;
+    const yearChip = s.year === a.year ? "mesmo ano" : s.year < a.year ? "↑ a música é mais nova" : "↓ a música é mais antiga";
+    const albumChip = r === "near"
+      ? `<span class="chip near"><span class="dot" style="--c:${eraColor(s.album)}"></span>álbum certo!</span>`
+      : `<span class="chip"><span class="dot" style="--c:${eraColor(s.album)}"></span>${esc(s.album)}</span><span class="chip">${yearChip}</span>`;
+    return `<div class="row ${r}"><span class="title">${esc(s.title)}</span><span class="chips">${albumChip}</span></div>`;
+  }).join("");
+}
+
+function renderControls() {
+  $("guessForm").hidden = state.done;
+  $("result").hidden = !state.done;
+  if (!state.done) {
+    const n = state.guesses.length + 1, next = steps()[n];
+    const more = audioOn && next ? `trecho de ${CLIP_SECS[n]} s e ${next.name.toLowerCase()}` : next ? next.name.toLowerCase() : "";
+    $("skipBtn").innerHTML = next ? `Pular <small>· libera ${more}</small>` : `Desistir <small>· ver a resposta</small>`;
+    return;
+  }
+  const song = answerSong(), color = eraColor(song.album);
+  const tries = state.guesses.length;
+  $("result").innerHTML = `
+    <p class="verdict ${state.won ? "ok" : "bad"}">${state.won ? (tries === 1 ? "Acertou de primeira!" : `Acertou na ${ordinal(tries)} tentativa!`) : "Não foi dessa vez. Era esta:"}</p>
+    <div class="bracelet">${bracelet(song.title, color)}</div>
+    <p class="meta">${esc(song.album)} · ${song.year}</p>
+    <div class="links">
+      <a href="${spotifyUrl(song.title)}" target="_blank" rel="noopener">${ICON.play}Ouvir no Spotify</a>
+      <a href="${youtubeUrl(song.title)}" target="_blank" rel="noopener">${ICON.play}Ver no YouTube</a>
+      ${audioOn && clipInfo.appleUrl ? `<a href="${esc(clipInfo.appleUrl)}" target="_blank" rel="noopener">${ICON.play}Ouvir no Apple Music</a>` : ""}
+    </div>
+    <p class="fact"><span class="label">Curiosidade</span><br>${esc(song.fact)}</p>
+    ${state.mode === "daily" ? `<p class="countdown">Próxima música do dia em <b id="countdown">--:--:--</b></p>` : ""}
+    <div class="actions">
+      <button class="btn ghost" id="shareBtn">Copiar resultado</button>
+      <button class="btn" id="againBtn">${state.mode === "daily" ? "Jogar no modo livre" : "Outra música"}</button>
+    </div>
+    <textarea class="share-fallback" id="shareFallback" readonly hidden aria-label="Resultado para copiar"></textarea>`;
+  $("shareBtn").addEventListener("click", share);
+  $("againBtn").addEventListener("click", () => { setMode("free", true); });
+  tickCountdown();
+}
+
+function render() {
+  $("subtitle").textContent = state.mode === "daily" ? `Música do dia #${state.day}` : "Modo livre";
+  $("modeBtn").setAttribute("aria-pressed", state.mode === "free");
+  $("modeBtn").setAttribute("aria-label", state.mode === "free" ? "Voltar para a música do dia" : "Modo livre");
+  renderTries(); renderClues(); renderRows(); renderControls();
+}
+
+/* ---------- Ações ---------- */
+
+function toast(msg) {
+  const el = $("toast"); el.textContent = msg; el.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 1800);
+}
+
+function finish(won) {
+  state.done = true; state.won = won;
+  stopPreviewUI(); stopClip();
+  if (won) { Sound.correct(); Sound.beads(state.answer.replace(/\s+/g, "").length); } else Sound.wrong();
+  if (state.mode === "daily") recordStats();
+}
+
+function submitGuess(title) {
+  if (state.done) return;
+  if (state.guesses.some(g => g.title === title)) { toast("Você já tentou essa"); return; }
+  stopClip();
+  state.guesses.push({ type: "guess", title });
+  const r = resultOf({ type: "guess", title });
+  if (r === "ok") finish(true);
+  else if (state.guesses.length >= MAX) finish(false);
+  else Sound.wrong();
+  $("guessInput").value = ""; hideSuggest();
+  save(); render();
+  if (state.done) $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function skip() {
+  if (state.done) return;
+  stopClip();
+  state.guesses.push({ type: "skip" });
+  if (state.guesses.length >= MAX) finish(false); else Sound.hint();
+  save(); render();
+  if (state.done) $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setMode(mode, fresh) {
+  stopPreviewUI(); stopClip();
+  if (mode === "daily") state = freshDaily();
+  else if (fresh || state.mode !== "free") state = freshFree(state.answer);
+  lastUnlocked = 0;
+  render();
+  loadClip();
+  window.scrollTo({ top: 0 });
+}
+
+function shareText() {
+  const squares = state.guesses.map(g => ({ ok: "🟩", near: "🟨", bad: "🟥", skip: "⬛" })[resultOf(g)]).join("");
+  const head = state.mode === "daily" ? `Seis Contas #${state.day}` : "Seis Contas (modo livre)";
+  return `${head} 🎶\n${squares}\n${state.won ? state.guesses.length : "X"}/6\n${SITE}`;
+}
+function share() {
+  const text = shareText(), btn = $("shareBtn");
+  const fallback = () => { const ta = $("shareFallback"); ta.value = text; ta.hidden = false; ta.focus(); ta.select(); btn.textContent = "Copie o texto abaixo"; };
+  try {
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = "Copiado!"; toast("Resultado copiado"); }, fallback);
+  } catch { fallback(); }
+}
+
+function tickCountdown() {
+  const el = $("countdown");
+  if (!el) return;
+  const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const s = Math.max(0, Math.floor((next - now) / 1000));
+  const pad = n => String(n).padStart(2, "0");
+  el.textContent = `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+  if (s === 0 && state.mode === "daily") setTimeout(() => setMode("daily"), 1500);
+}
+setInterval(tickCountdown, 1000);
+
+// Trilha da era (prévia de alguns segundos com anel de progresso)
+const ICON = {
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+};
+let previewStart = 0, previewRaf = 0;
+function stopPreviewUI() {
+  if (!previewStart) return;
+  previewStart = 0; cancelAnimationFrame(previewRaf); Sound.stopPreview();
+  const prog = $("ringProg"), glyph = $("ringGlyph");
+  if (prog) prog.setAttribute("stroke-dashoffset", "169.6");
+  if (glyph) glyph.innerHTML = ICON.play;
+}
+function togglePreview() {
+  if (previewStart) { stopPreviewUI(); return; }
+  const ok = Sound.preview(answerSong().album, PREVIEW_SECS, () => { previewStart = 0; stopPreviewUI(); });
+  if (!ok) { toast("Seu navegador não toca áudio"); return; }
+  previewStart = performance.now();
+  $("ringGlyph").innerHTML = ICON.stop;
+  const frame = now => {
+    if (!previewStart) return;
+    const p = Math.min(1, (now - previewStart) / (PREVIEW_SECS * 1000));
+    const prog = $("ringProg");
+    if (prog) prog.setAttribute("stroke-dashoffset", String(169.6 * (1 - p)));
+    if (p < 1) previewRaf = requestAnimationFrame(frame);
+  };
+  previewRaf = requestAnimationFrame(frame);
+}
+
+// Modo áudio: busca a prévia oficial na Apple Music (iTunes Search API, via JSONP) e toca trechos crescentes.
+const clipInfo = { title: null, url: null, appleUrl: null, status: "idle" };
+const audio = new Audio();
+audio.preload = "auto";
+let clipLimit = 0, clipRaf = 0;
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = "itunes" + Math.random().toString(36).slice(2);
+    const el = document.createElement("script");
+    const done = () => { clearTimeout(timer); delete window[cb]; el.remove(); };
+    const timer = setTimeout(() => { done(); reject(new Error("tempo esgotado")); }, 9000);
+    window[cb] = data => { done(); resolve(data); };
+    el.onerror = () => { done(); reject(new Error("falha")); };
+    el.src = `${url}&callback=${cb}`;
+    document.head.appendChild(el);
+  });
+}
+const baseTitle = t => norm(t.replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ""));
+async function loadClip() {
+  if (!audioOn) return;
+  const title = state.answer;
+  if (clipInfo.title === title && clipInfo.status !== "failed") return;
+  Object.assign(clipInfo, { title, url: null, appleUrl: null, status: "loading" });
+  renderClipState();
+  try {
+    const data = await jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(`Taylor Swift ${title}`)}&media=music&entity=song&limit=25&country=US`);
+    if (clipInfo.title !== title) return;
+    const hits = (data.results || []).filter(r => /taylor swift/i.test(r.artistName || "") && r.previewUrl && baseTitle(r.trackName || "") === norm(title));
+    const pick = hits.find(r => /taylor.s version/i.test(r.trackName)) || hits[0];
+    if (!pick) throw new Error("não encontrada");
+    Object.assign(clipInfo, { url: pick.previewUrl, appleUrl: pick.trackViewUrl, status: "ready" });
+    audio.src = pick.previewUrl;
+    renderClipState();
+    if (state.done) renderControls();
+  } catch {
+    if (clipInfo.title !== title) return;
+    clipInfo.status = "failed"; audioOn = false;
+    toast("Não deu para carregar a música. Jogando com pistas.");
+    render();
+  }
+}
+const clipSecs = () => state.done ? 30 : CLIP_SECS[Math.min(state.guesses.length, CLIP_SECS.length - 1)];
+function playerHTML() {
+  const open = clipSecs(), total = state.done ? 30 : 16;
+  const ticks = state.done ? "" : CLIP_SECS.slice(0, -1).map(t => `<span class="tick" style="left:${100 * t / 16}%"></span>`).join("");
+  return `<div class="player">
+    <button type="button" class="ring big" id="clipBtn" aria-label="Tocar o trecho da música">
+      <svg viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="27"/><circle class="prog" id="clipProg" cx="30" cy="30" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg>
+      <span class="glyph" id="clipGlyph">${ICON.play}</span>
+    </button>
+    <p class="clip-label" id="clipLabel"></p>
+    <div class="clipbar" style="--open:${100 * open / total}%"><span class="open"></span><span class="now" id="clipNow"></span>${ticks}</div>
+  </div>`;
+}
+function renderClipState() {
+  const label = $("clipLabel"), btn = $("clipBtn");
+  if (!label || !btn) return;
+  const secs = clipSecs();
+  const what = state.done ? "Prévia completa (30 s)" : `Trecho de ${secs} segundo${secs === 1 ? "" : "s"}`;
+  const sub = clipInfo.status === "loading" ? "carregando a música..." : "prévia oficial via Apple Music";
+  label.innerHTML = `${what}<small>${sub}</small>`;
+  btn.disabled = clipInfo.status !== "ready";
+}
+function stopClip() {
+  cancelAnimationFrame(clipRaf); clipRaf = 0;
+  if (!audio.paused) audio.pause();
+  const prog = $("clipProg"), glyph = $("clipGlyph"), now = $("clipNow");
+  if (prog) prog.setAttribute("stroke-dashoffset", "169.6");
+  if (glyph) glyph.innerHTML = ICON.play;
+  if (now) now.style.setProperty("--now", "0%");
+}
+function toggleClip() {
+  if (clipInfo.status !== "ready") return;
+  if (!audio.paused) { stopClip(); return; }
+  clipLimit = clipSecs();
+  const total = state.done ? 30 : 16;
+  try { audio.currentTime = 0; } catch {}
+  audio.play().then(() => {
+    $("clipGlyph").innerHTML = ICON.stop;
+    const frame = () => {
+      const t = audio.currentTime;
+      const prog = $("clipProg"), now = $("clipNow");
+      if (prog) prog.setAttribute("stroke-dashoffset", String(169.6 * (1 - Math.min(1, t / clipLimit))));
+      if (now) now.style.setProperty("--now", `${100 * Math.min(t, clipLimit) / total}%`);
+      if (t >= clipLimit || audio.ended) { stopClip(); return; }
+      clipRaf = requestAnimationFrame(frame);
+    };
+    clipRaf = requestAnimationFrame(frame);
+  }).catch(() => toast("Toque de novo para ouvir"));
+}
+
+// Sugestões enquanto digita
+let suggestions = [], active = -1;
+function hideSuggest() { $("suggest").hidden = true; suggestions = []; active = -1; }
+function updateSuggest() {
+  const q = norm($("guessInput").value);
+  if (!q) { hideSuggest(); return; }
+  const used = new Set(state.guesses.map(g => g.title));
+  suggestions = SONGS.filter(s => !used.has(s.title) && norm(s.title).includes(q))
+    .sort((a, b) => norm(a.title).indexOf(q) - norm(b.title).indexOf(q) || a.title.localeCompare(b.title))
+    .slice(0, 6);
+  active = suggestions.length ? 0 : -1;
+  const ul = $("suggest");
+  if (!suggestions.length) { ul.innerHTML = `<li><button type="button" disabled><b>Nenhuma música com esse nome</b></button></li>`; ul.hidden = false; return; }
+  ul.innerHTML = suggestions.map((s, k) =>
+    `<li><button type="button" data-title="${esc(s.title)}" class="${k === active ? "active" : ""}"><b>${esc(s.title)}</b><small>${esc(s.album)}</small></button></li>`).join("");
+  ul.hidden = false;
+}
+function resolveGuess() {
+  const q = norm($("guessInput").value);
+  if (!q) return null;
+  const exact = SONGS.find(s => norm(s.title) === q);
+  if (exact) return exact.title;
+  if (active >= 0 && suggestions[active]) return suggestions[active].title;
+  return null;
+}
+
+/* ---------- Eventos ---------- */
+
+$("guessInput").addEventListener("input", updateSuggest);
+$("guessInput").addEventListener("keydown", ev => {
+  if (!suggestions.length) return;
+  if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+    ev.preventDefault();
+    active = (active + (ev.key === "ArrowDown" ? 1 : -1) + suggestions.length) % suggestions.length;
+    [...$("suggest").querySelectorAll("button")].forEach((b, k) => b.classList.toggle("active", k === active));
+  } else if (ev.key === "Escape") hideSuggest();
+});
+$("suggest").addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-title]");
+  if (b) { Sound.unlock(); submitGuess(b.dataset.title); }
+});
+$("guessForm").addEventListener("submit", ev => {
+  ev.preventDefault();
+  Sound.unlock();
+  const title = resolveGuess();
+  if (title) submitGuess(title);
+  else toast($("guessInput").value.trim() ? "Escolha uma música da lista" : "Digite o nome de uma música");
+});
+$("skipBtn").addEventListener("click", () => { Sound.unlock(); skip(); });
+
+$("modeBtn").addEventListener("click", () => setMode(state.mode === "free" ? "daily" : "free"));
+$("helpBtn").addEventListener("click", () => $("helpDlg").showModal());
+$("settingsBtn").addEventListener("click", () => { renderSettings(); $("settingsDlg").showModal(); });
+$("statsBtn").addEventListener("click", () => { renderStats(); $("statsDlg").showModal(); });
+document.querySelectorAll("dialog").forEach(dlg => {
+  dlg.addEventListener("click", ev => {
+    const r = dlg.getBoundingClientRect();
+    const outside = ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom;
+    if ((ev.target === dlg && outside) || ev.target.closest("[data-close]")) dlg.close();
+  });
+});
+
+function renderStats() {
+  const st = store.get("seis-contas-stats", emptyStats());
+  const pct = st.played ? Math.round(100 * st.wins / st.played) : 0;
+  const max = Math.max(1, ...st.dist);
+  const highlight = state.mode === "daily" && state.done && state.won ? state.guesses.length - 1 : -1;
+  $("statsBody").innerHTML = `
+    <div class="stats">
+      <div><b>${st.played}</b><span>jogos</span></div>
+      <div><b>${pct}%</b><span>vitórias</span></div>
+      <div><b>${st.streak}</b><span>sequência atual</span></div>
+      <div><b>${st.best}</b><span>melhor sequência</span></div>
+    </div>
+    <p class="label" style="margin-bottom:8px">Acertos por tentativa</p>
+    <div class="dist">${st.dist.map((n, k) => `<div><span>${k + 1}</span><span class="bar ${k === highlight ? "hl" : ""}" style="--w:${Math.max(8, Math.round(100 * n / max))}%">${n}</span></div>`).join("")}</div>
+    <p class="note" style="margin-top:14px">Contam só as partidas da música do dia, neste aparelho.</p>`;
+}
+
+function renderSettings() {
+  $("sfxSwitch").setAttribute("aria-checked", Sound.prefs.sfx);
+  $("resetBox").innerHTML = `<button class="link-btn" id="resetAsk">Zerar minhas estatísticas</button>`;
+  $("resetAsk").addEventListener("click", () => {
+    $("resetBox").innerHTML = `<p>Tem certeza? Isso apaga seus jogos, vitórias e sequências.</p>
+      <div class="actions"><button class="btn ghost" id="resetNo">Cancelar</button><button class="btn" id="resetYes">Zerar</button></div>`;
+    $("resetNo").addEventListener("click", renderSettings);
+    $("resetYes").addEventListener("click", () => { store.set("seis-contas-stats", emptyStats()); toast("Estatísticas zeradas"); renderSettings(); });
+  });
+}
+$("sfxSwitch").addEventListener("click", () => { Sound.setSfx(!Sound.prefs.sfx); renderSettings(); });
+
+window.claude?.hot?.snapshot?.(() => state);
+function boot(data) {
+  if (data && typeof data === "object" && data.answer && songBy(data.answer) && Array.isArray(data.guesses)) {
+    state = { ...state, ...data };
+    if (state.mode === "daily" && state.day !== todayNumber()) state = freshDaily();
+  }
+  if (AUDIO_MODE) {
+    $("helpSteps").textContent = "Você começa ouvindo 1 segundo da música. Cada palpite errado ou pulo libera mais música (2, 4, 7, 11 e 16 segundos) e uma pista nova: emojis, dica 1, dica 2, álbum e ano, dica 3.";
+    $("footNote").textContent = "Os trechos são prévias oficiais da Apple Music. As pistas usam emojis, histórias e curiosidades, sem letras de música.";
+  }
+  lastUnlocked = unlockedCount();
+  render();
+  loadClip();
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
