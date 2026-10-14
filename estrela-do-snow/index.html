@@ -118,6 +118,7 @@
   .chip span { display: inline-block; padding: 9px 14px; border-radius: 999px; background: var(--panel-2); font-weight: 700; font-size: 14px; border: 2px solid transparent; }
   .chip input:checked + span { border-color: var(--coral); background: #fff; }
   .chip .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+  .vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
   .coatname { font-size: 13px; color: var(--muted); min-height: 1.2em; }
   #preview { width: 100%; height: auto; aspect-ratio: 2 / 1; border-radius: 18px; background: #f6e2d4; display: block; max-width: 100%; }
   .cfg-grid { display: grid; gap: 14px; }
@@ -172,7 +173,7 @@
       <button class="btn primary" id="btnStart">Começar a aventura</button>
       <button class="btn" id="btnContinue" hidden>Continuar</button>
       <div class="row">
-        <button class="btn small" id="btnCat" style="flex:1">Personagens</button>
+        <button class="btn small" id="btnCat" style="flex:1">Personagens e música</button>
         <button class="btn small" id="btnHelp1" style="flex:1">Como jogar</button>
         <button class="btn small" id="btnSound1" style="flex:1">Som: desligado</button>
       </div>
@@ -206,6 +207,16 @@
         <div class="lab">Pelagem</div>
         <div class="swatches" id="coatOpts"></div>
         <div class="coatname" id="coatName"></div>
+      </div>
+    </div>
+    <div class="field">
+      <div class="lab">Música da despedida (opcional)</div>
+      <p class="note">O jogo não traz músicas prontas, por direitos autorais. Se você tiver o arquivo de “Bluebird”, ou de outra música, no seu aparelho, escolha aqui. Com o som ligado, ela começa quando a estrela volta ao céu e segue até a cena em casa. O arquivo fica só neste navegador.</p>
+      <div class="row" style="align-items:center">
+        <label class="btn small" for="songFile">Escolher arquivo de música</label>
+        <input type="file" id="songFile" accept="audio/*" class="vh">
+        <span class="coatname" id="songName">Nenhuma música escolhida</span>
+        <button type="button" class="btn small" id="songClear" hidden>Remover</button>
       </div>
     </div>
     <div class="row">
@@ -335,8 +346,8 @@ function audioInit() {
 }
 function setSound(on) {
   AU.on = on;
-  if (on) { audioInit(); if (AU.ctx) { AU.ctx.resume(); startMusic(); } }
-  else stopMusic();
+  if (on) { audioInit(); if (AU.ctx) AU.ctx.resume(); if (SONG.phase && SONG.url) playSong(); else if (AU.ctx) startMusic(); }
+  else { stopMusic(); SONG.el.pause(); }
   const label = on ? 'Som: ligado' : 'Som: desligado';
   $('btnSound1').textContent = label; $('btnSound2').textContent = label;
   $('btnSound').setAttribute('aria-label', on ? 'Desligar o som' : 'Ligar o som');
@@ -397,6 +408,20 @@ const SFX = {
   rustle() { noise(.4, { f: 'highpass', freq: 2500, vol: .035 }); },
   click() { tone(880, .06, { vol: .03 }); },
 };
+/* música escolhida pela jogadora (arquivo local, guardado no IndexedDB) */
+const SONG = { url: null, name: '', el: new Audio(), phase: false, fade: null };
+SONG.el.loop = true; SONG.el.preload = 'auto';
+function idb() { return new Promise((res, rej) => { const r = indexedDB.open('estrelaDoSnow', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function songStore(val) { try { const db = await idb(); const tx = db.transaction('f', 'readwrite'); val ? tx.objectStore('f').put(val, 'song') : tx.objectStore('f').delete('song'); } catch (e) {} }
+async function songLoad() { try { const db = await idb(); const q = db.transaction('f').objectStore('f').get('song'); q.onsuccess = () => { if (q.result && q.result.blob) setSongBlob(q.result.blob, q.result.name); }; } catch (e) {} }
+function setSongBlob(blob, name) { if (SONG.url) URL.revokeObjectURL(SONG.url); SONG.url = blob ? URL.createObjectURL(blob) : null; SONG.name = name || ''; if (SONG.url) SONG.el.src = SONG.url; else SONG.el.removeAttribute('src'); updSongUI(); }
+function updSongUI() { const n = document.getElementById('songName'), b = document.getElementById('songClear'); if (!n) return; n.textContent = SONG.url ? `Escolhida: ${SONG.name}` : 'Nenhuma música escolhida'; b.hidden = !SONG.url; }
+function playSong() {
+  stopMusic(); clearInterval(SONG.fade); SONG.el.volume = 0; const pr = SONG.el.play(); if (pr) pr.catch(() => {});
+  SONG.fade = setInterval(() => { SONG.el.volume = Math.min(.85, SONG.el.volume + .02); if (SONG.el.volume >= .85) clearInterval(SONG.fade); }, 80);
+}
+function startSong() { SONG.phase = true; if (!SONG.url || !AU.on) return; SONG.el.currentTime = 0; playSong(); }
+function stopSong() { SONG.phase = false; clearInterval(SONG.fade); SONG.el.pause(); if (AU.on) startMusic(); }
 /* trilha de caixinha de música, gerada nota a nota */
 const MOODS = {
   title:  { bpm: 60, root: 60, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], dens: .45 },
@@ -956,12 +981,22 @@ function drawCat(c, k, cfg) {
 /* =========================================================
    Estrelinha
    ========================================================= */
-function drawStar(c, x, y, r, b, awake) {
+function drawStar(c, x, y, r, b, awake, pts) {
+  if (pts == null) pts = Math.round(clamp(b, 0, 1) * 5);
+  if (pts > 0 && pts < 5) b = .08;
   const col = mix('#8f97b6', '#ffe07a', clamp(b, 0, 1));
   glow(c, x, y, r * (2.2 + b * 3.5), b > .3 ? '#ffe9a0' : '#c9d0ea', .18 + b * .45);
   c.save(); c.translate(x, y); c.rotate(Math.sin(G.time * 1.3) * .08);
   c.fillStyle = col; c.strokeStyle = col; c.lineJoin = 'round'; c.lineWidth = r * .38;
   c.beginPath(); starPath(c, 0, 0, r, r * .5); c.fill(); c.stroke();
+  if (pts > 0 && pts < 5) {
+    for (let i = 0; i < pts; i++) {
+      const a = -Math.PI / 2 + i * TAU / 5, a1 = a - Math.PI / 5, a2 = a + Math.PI / 5;
+      glow(c, Math.cos(a) * r * .9, Math.sin(a) * r * .9, r * 1.3, '#ffe9a0', .6);
+      c.fillStyle = '#ffe07a'; c.strokeStyle = '#ffe07a'; c.lineWidth = r * .3;
+      c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a1) * r * .5, Math.sin(a1) * r * .5); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); c.lineTo(Math.cos(a2) * r * .5, Math.sin(a2) * r * .5); c.closePath(); c.fill(); c.stroke();
+    }
+  }
   c.fillStyle = rgba('#ffffff', .35 + b * .3); c.beginPath(); ell(c, -r * .25, -r * .3, r * .22, r * .14, -.5); c.fill();
   c.strokeStyle = mix('#4c5070', '#9a5b1c', b); c.fillStyle = c.strokeStyle; c.lineWidth = Math.max(1, r * .1); c.lineCap = 'round';
   if (awake) { c.beginPath(); circ(c, -r * .22, -r * .02, r * .08); circ(c, r * .22, -r * .02, r * .08); c.fill(); }
@@ -976,7 +1011,7 @@ function updStar(dt) {
   let tx, ty;
   if (G.starHold) { tx = G.starHold.x; ty = G.starHold.y; }
   else { tx = P.x - P.face * 30; ty = P.y - 138 + Math.sin(G.time * 2) * 5; }
-  const k = 1 - Math.pow(G.starHold ? .2 : .004, dt);
+  const k = 1 - Math.pow(G.starSlow ? .55 : G.starHold ? .2 : .004, dt);
   STAR.x = lerp(STAR.x, tx, k); STAR.y = lerp(STAR.y, ty, k);
   if (Math.random() < .08 + G.starB * .2) part({ x: STAR.x + rnd(-10, 10), y: STAR.y + rnd(-10, 10), vy: rnd(-10, 10), life: .8, size: rnd(1.5, 3), col: G.starB > .3 ? '#ffe9a0' : '#d6dcf2', type: 'spark' });
 }
@@ -1017,8 +1052,8 @@ function wrapText(c, text, maxW) {
   if (line) lines.push(line); return lines;
 }
 const FONT = 'ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Varela Round", "Trebuchet MS", system-ui, sans-serif';
-function drawBubble(c) {
-  const b = G.bubble; if (!b) return;
+function drawBubble(c, b = G.bubble) {
+  if (!b) return;
   const txt = b.text.slice(0, Math.floor(b.shown));
   if (b.who === 'narr') {
     c.font = `italic 600 20px ${FONT}`;
@@ -1036,7 +1071,7 @@ function drawBubble(c) {
   const lines = wrapText(c, b.text, 300);
   const tw = Math.max(...lines.map(l => c.measureText(l).width), 80);
   const w = tw + 34, h = lines.length * 25 + 48;
-  const ax = (e.x - G.cam.x) * G.zoom, ay = (headTop(e) - 14 - OY()) * G.zoom;
+  const ax = G.mode === 'epi' ? epiX(e) : (e.x - G.cam.x) * G.zoom, ay = G.mode === 'epi' ? epiTop(e) : (headTop(e) - 14 - OY()) * G.zoom;
   let x = clamp(ax - w / 2, 12, W - w - 12), y = Math.max(10, ay - h);
   c.save();
   c.fillStyle = 'rgba(40,20,40,.18)'; c.beginPath(); rrect(c, x + 3, y + 5, w, h, 18); c.fill();
@@ -1049,7 +1084,7 @@ function drawBubble(c) {
   c.font = `800 13px ${FONT}`; c.fillStyle = nameCol; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(name.toUpperCase(), x + 17, y + 12);
   c.font = `600 19px ${FONT}`; c.fillStyle = '#3b2a3d';
   let n = 0; for (let i = 0; i < lines.length; i++) { const L = lines[i]; c.fillText(txt.slice(n, n + L.length), x + 17, y + 32 + i * 25); n += L.length + 1; }
-  if (b.shown >= b.text.length) { c.fillStyle = nameCol; c.globalAlpha = .5 + .5 * Math.sin(G.time * 5); c.beginPath(); c.moveTo(x + w - 22, y + h - 18); c.lineTo(x + w - 13, y + h - 13); c.lineTo(x + w - 22, y + h - 8); c.fill(); }
+  if (b.shown >= b.text.length && !b.chat) { c.fillStyle = nameCol; c.globalAlpha = .5 + .5 * Math.sin(G.time * 5); c.beginPath(); c.moveTo(x + w - 22, y + h - 18); c.lineTo(x + w - 13, y + h - 13); c.lineTo(x + w - 22, y + h - 8); c.fill(); }
   c.restore();
 }
 function drawEmotes(c) {
@@ -1344,6 +1379,7 @@ function level1() {
     drawBowl(c, 1222, 450);
     drawShelf(c, 1395, 450);
     drawDoor(c, 1782, 450, L.doorOpen);
+    if (G.floorStar) drawStar(c, G.floorStar.x, G.floorStar.y, 11, .05, false, 0);
     c.strokeStyle = '#8a6a55'; c.lineWidth = 3; c.beginPath(); c.moveTo(1730, 250); c.lineTo(1730, 262); c.stroke();
     c.strokeStyle = '#7fb6e8'; c.lineWidth = 4; c.beginPath(); c.moveTo(1730, 262); c.quadraticCurveTo(1722, 300, 1736, 330); c.quadraticCurveTo(1744, 300, 1730, 262); c.stroke();
   };
@@ -1352,82 +1388,76 @@ function level1() {
     const v = c.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, H * .85); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(50,20,40,.32)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
   };
   L.ambient = dt => { if (Math.random() < dt * 3) part({ x: G.cam.x + rnd(0, W), y: rnd(60, 420), vx: rnd(-5, 5), vy: rnd(-6, 6), life: rnd(3, 6), size: rnd(1, 2), col: '#fff3d0', type: 'mote' }); };
-  L.sniffs = [{ x: 845, when: () => L.flags.askSniff && !L.flags.starFound, found: () => L.flags.sniffed = true }];
   L.inter = [
-    { x: 1820, py: 300, r: 70, label: () => L.flags.starFound ? 'Sair com o Snow' : 'Porta', use: () => { if (!L.flags.starFound) { toast('O Snow ainda quer mostrar alguma coisa.'); return; } exitHouse(); } },
-    { x: 885, py: 320, r: 60, label: () => `Carinho em ${catName()}`, when: () => L.flags.catIntro && C.visible && Math.abs(C.x - 885) < 80 && !L.flags.catPet, use: async () => { L.flags.catPet = true; C.pose = 'sit'; SFX.meow(); SFX.purr(); hearts(C.x, C.y - 50, 4); emote(C, '♥'); P.expr = 'happy'; await sleep(1.2); P.expr = 'smile'; L.flags.catPet = false; } },
+    { x: 1810, py: 300, r: 70, label: () => L.flags.ready ? 'Sair com o Snow' : 'Porta', use: () => { if (!L.flags.ready) { toast('O Snow está esperando você ali perto da porta.'); return; } exitHouse(); } },
+    { x: 885, py: 320, r: 60, label: () => `Carinho em ${catName()}`, when: () => C.visible && C.pose !== 'walk' && Math.abs(C.x - P.x) < 70 && !L.flags.catPet && !L.flags.ready, use: async () => { L.flags.catPet = true; SFX.meow(); SFX.purr(); hearts(C.x, C.y - 50, 4); emote(C, '♥'); P.expr = 'happy'; await sleep(1.2); P.expr = 'smile'; L.flags.catPet = false; } },
   ];
   async function exitHouse() {
     cs(true); hint(null);
-    await walkTo(P, 1760, 160); P.face = -1;
-    C.visible = true; C.x = Math.min(C.x, 1560); if (C.x < 1500) C.x = 1500; C.pose = 'walk'; await walkTo(C, 1680, 110); C.pose = 'sit'; C.face = 1;
-    await say(P, `Cuida da casa, ${catName()}. A gente já volta.`);
-    SFX.meow(); emote(C, '♥');
-    await say(C, 'Miau.');
-    P.face = 1; L.doorOpen = 0; SFX.creak();
+    await walkTo(P, 1800, 160); P.face = 1; L.doorOpen = 0; SFX.creak();
     await until(() => (L.doorOpen = Math.min(1, L.doorOpen + .03)) >= 1);
-    walkTo(S, 1830, 200); await walkTo(P, 1840, 160);
+    walkTo(S, 1840, 200); await walkTo(P, 1850, 160);
     nextLevel();
   }
   L.script = async () => {
-    cs(true); S.alpha = 0; S.mode = 'script'; S.x = 560; S.face = -1; G.hasStar = false;
-    C.visible = true; C.x = 885; C.y = 384; C.pose = 'sleep'; C.face = -1;
-    P.face = 1; P.expr = 'sad';
-    await sleep(1.4);
-    await say('narr', 'Desde que o Snow partiu, a casa ficou silenciosa demais.');
-    P.face = -1; await sleep(.6);
-    // uma luz cai pela janela
-    SFX.whoosh();
-    const fall = { x: 280, y: 130 }; G.falling = fall;
-    await until(() => { fall.x = lerp(fall.x, 560, .045); fall.y = lerp(fall.y, 420, .045); if (Math.random() < .7) part({ x: fall.x, y: fall.y, vx: rnd(-20, 20), vy: rnd(-20, 20), life: .8, size: rnd(2, 4), col: '#fff1b0', type: 'spark' }); return Math.abs(fall.x - 560) < 6; });
-    G.falling = null; SFX.shine(); sparkBurst(560, 420, 30, '#fff1b0'); G.flash = .6;
-    P.face = 1; P.expr = 'surprise'; emote(P, '!');
-    await until(() => (S.alpha = Math.min(1, S.alpha + .012)) >= 1);
-    S.poseLock = 'sit'; S.wag = 1; tag(S, 'Snow');
-    await sleep(1);
-    await say(P, 'Snow...?');
-    SFX.bark(); S.poseLock = null;
-    await say(S, 'Au! Au!');
-    await walkTo(S, 250, 320); await walkTo(S, 470, 320); S.face = -1; S.poseLock = 'sit'; hearts(S.x, S.y - 70, 3);
-    P.expr = 'teary'; tag(P, 'Taís');
-    cs(false); S.mode = 'stay'; S.stayX = S.x;
-    hint(isTouch ? 'Faça carinho no Snow: toque no botão ♥ Carinho.' : 'Faça carinho no Snow: aperte C (ou o botão ♥ Carinho).');
-    const n = G.petCount; await until(() => G.petCount > n);
-    hint(null); await sleep(.4);
-    cs(true); P.expr = 'teary';
-    await say(P, 'Que saudade de você.');
-    P.expr = 'smile'; S.poseLock = 'sniff'; SFX.sniff(); await sleep(1);
-    S.poseLock = null; await walkTo(S, 790, 260); S.face = 1; S.poseLock = 'point'; SFX.bark(); emote(S, '!');
-    cs(false); S.mode = 'stay'; S.stayX = 790;
-    hint(isTouch ? 'Use as setas ◀ ▶ para ir até o Snow.' : 'Ande até o Snow com ← → (ou A e D).');
-    await until(() => Math.abs(P.x - S.x) < 190);
-    L.flags.askSniff = true; S.poseLock = null;
-    hint(isTouch ? 'O Snow sentiu um cheiro! Toque em Farejar.' : 'O Snow sentiu um cheiro! Aperte F para ele farejar.');
-    await until(() => L.flags.sniffed);
-    hint(null);
-    cs(true);
-    S.mode = 'script'; S.x = 815; S.face = 1; S.poseLock = 'dig'; for (let i = 0; i < 8; i++) { SFX.dig(); dust(S.x + 40, 448, 2); await sleep(.15); }
-    S.poseLock = 'stand'; SFX.shine();
-    G.hasStar = true; STAR.x = 860; STAR.y = 440; G.starHold = { x: 860, y: 380 }; G.starB = .05; sparkBurst(860, 440, 20, '#d6dcf2');
-    C.pose = 'sit'; emote(C, '!'); SFX.meow(); tag(C, catName());
+    cs(true); G.hasStar = false;
+    S.x = 1700; S.y = 450; S.face = -1; S.mode = 'script'; S.poseLock = 'sit';
+    G.floorStar = { x: 1655, y: 438 };
+    C.visible = false;
+    P.x = 330; P.face = 1; P.expr = 'smile';
     await sleep(1.2);
-    G.starHold = { x: (P.x + 860) / 2, y: 330 }; await sleep(.8);
-    P.face = 1; S.face = -1; S.poseLock = 'sit';
-    await say(S, 'Essa estrelinha se apagou.');
-    await say(S, 'Ela precisa voltar para o Jardim das Estrelas. Me ajuda a levar?');
-    await say(S, 'Quando ela brilhar de novo, eu vou poder descansar.');
-    P.expr = 'sad'; await sleep(1.2);
-    P.expr = 'smile';
-    await say(P, 'Então vamos juntos. Como sempre.');
-    G.starHold = null; S.wag = 1;
-    // o gato desce do sofá e cumprimenta o Snow
-    await leapTo(C, 860, 450, .5, 40); C.face = -1; C.pose = 'walk'; await walkTo(C, S.x + 60, 70); C.pose = 'sit';
-    S.face = 1; await sleep(.4); hearts((S.x + C.x) / 2 + 10, 400, 2); SFX.pet();
-    await say('narr', `${catName()} observa vocês dois com muita atenção.`);
-    L.flags.starFound = true; L.flags.catIntro = true; updHUD();
-    cs(false);
+    tag(S, 'Snow'); SFX.bark1(); emote(S, '♥'); S.wag = 1;
+    await sleep(.8);
+    cs(false); S.mode = 'stay'; S.stayX = 1700; S.poseLock = 'sit';
+    hint(isTouch ? 'O Snow está perto da porta. Use ◀ ▶ para andar até ele.' : 'O Snow está perto da porta. Ande com ← → (ou A e D).');
     L.triggers.push({ x: 1150, fn: () => hint(isTouch ? 'Toque em Pular para passar por cima das coisas.' : 'Pule com ↑, W ou Espaço.') });
-    L.triggers.push({ x: 1610, fn: () => hint(isTouch ? 'Na porta, toque em Ação para sair.' : 'Na porta, aperte E para sair.') });
+    await until(() => P.x > 1612 && P.onGround);
+    hint(null); cs(true); S.poseLock = 'sit';
+    await walkTo(P, 1618, 120); P.face = 1;
+    await say(P, 'Snow… o que você trouxe?');
+    await say(S, 'Achei no jardim.');
+    P.expr = 'surprise';
+    await say(P, 'Você trouxe uma estrela pra dentro de casa?');
+    P.expr = 'smile';
+    await say(S, 'Ela tava sozinha.');
+    P.poseLock = 'kneel'; await sleep(.6);
+    G.floorStar = null; G.hasStar = true; STAR.x = 1655; STAR.y = 436; G.starB = .05; G.starHold = { x: 1650, y: 400 }; sparkBurst(1655, 436, 12, '#d6dcf2'); SFX.pick();
+    await sleep(.8);
+    P.expr = 'sad';
+    await say(P, 'Tá apagada.');
+    await say(S, 'A gente pode levar ela pra casa.');
+    P.expr = 'smile'; P.poseLock = null; G.starHold = null;
+    await say(P, 'E você sabe onde é?');
+    await say(S, 'Mais ou menos.');
+    await say(P, '“Mais ou menos” não me deixou muito tranquila.');
+    S.wag = 1; S.poseLock = 'sit'; await sleep(1.1);
+    await say(S, 'Você vem comigo?');
+    P.expr = 'happy';
+    await say(P, 'Claro que vou. Espera eu pegar uma blusa.');
+    P.expr = 'smile'; updHUD();
+    cs(false); S.mode = 'stay'; S.stayX = S.x; S.poseLock = null;
+    hint(isTouch ? 'Antes de sair, faça carinho no Snow: toque em ♥ Carinho.' : 'Antes de sair, faça carinho no Snow: aperte C (ou o botão ♥ Carinho).');
+    const n = G.petCount; await until(() => G.petCount > n && !G.pet);
+    hint(null);
+    cs(true); S.poseLock = 'sit';
+    await say(S, 'Aí. Bem aí.');
+    await say(P, 'Aqui?');
+    await say(S, 'Isso. Não muda.');
+    // o gato aparece na porta
+    C.visible = true; C.x = 1740; C.y = 450; C.face = -1; C.pose = 'walk'; C.alpha = 0;
+    await until(() => (C.alpha = Math.min(1, C.alpha + .04)) >= 1);
+    await walkTo(C, 1760, 60); C.pose = 'sit'; C.face = -1; P.face = 1; S.face = 1;
+    tag(C, catName()); SFX.meow();
+    await say(C, 'Eu vou também?');
+    await say(S, 'Guarda a casa pra gente?');
+    await say(C, 'Tá. Mas, quando voltar, ela senta comigo.');
+    P.expr = 'happy';
+    await say(P, 'Eu tenho dois lados, sabia? Cabe um em cada.');
+    P.expr = 'smile'; hearts(C.x, C.y - 50, 2);
+    L.flags.ready = true;
+    cs(false);
+    await walkTo(C, 1590, 80); C.pose = 'sit'; C.face = 1;
+    hint(isTouch ? 'Na porta, toque em Ação para sair.' : 'Na porta, aperte E para sair.');
   };
   return L;
 }
@@ -1446,7 +1476,8 @@ function level2() {
     ],
   });
   L.gate = 0;
-  L.mounds = [{ x: 1150, c: 'osso', dug: 0 }, { x: 1880, c: 'frag', dug: 0 }, { x: 2130, c: 'corda', dug: 0 }];
+  L.mounds = [{ x: 1150, c: 'osso', dug: 0 }, { x: 2130, c: 'corda', dug: 0 }];
+  L.bush = { x: 1880, open: 0 };
   L.solids.push(L.gateSolid = { x: 2730, y: 200, w: 30, h: 250, k: 'inv' });
   L.butterflies = [0, 1, 2].map(i => ({ x: 500 + i * 800, y: 340, ph: i * 2, col: ['#ffb3c8', '#fff09a', '#b9e3ff'][i] }));
   L.drawSky = (c, cx) => {
@@ -1494,6 +1525,19 @@ function level2() {
     }
   };
   L.drawMid = c => {
+    const b = L.bush;
+    if (visible(b.x - 80, 160)) {
+      if (L.flags.sniffed && !L.flags.frag) glow(c, b.x, 420, 70, '#fff1b0', .3 + .15 * Math.sin(G.time * 4));
+      if (b.open > 0 && !L.flags.frag) { glow(c, b.x, 426, 40, '#fff1b0', .8 * b.open); c.fillStyle = '#fff6cf'; sparkle(c, b.x, 426, 6 * b.open); }
+      const sh = Math.sin(G.time * 30) * (b.shake || 0);
+      for (const side of [-1, 1]) {
+        c.save(); c.translate(b.x + side * (b.open * 26) + sh, 450); c.rotate(side * b.open * .35);
+        c.fillStyle = '#5f9e4d'; c.beginPath(); circ(c, side * 14, -30, 26); circ(c, side * 30, -16, 18); circ(c, side * 2, -14, 20); c.fill();
+        c.fillStyle = '#76b85a'; c.beginPath(); circ(c, side * 12, -38, 14); circ(c, side * 28, -24, 9); c.fill();
+        c.fillStyle = '#ff9fb0'; c.beginPath(); circ(c, side * 20, -36, 3); circ(c, side * 6, -22, 3); c.fill();
+        c.restore();
+      }
+    }
     for (const m of L.mounds) {
       if (!visible(m.x - 40, 80)) continue;
       if (m.dug < 1) { c.fillStyle = '#9b6b48'; c.beginPath(); ell(c, m.x, 450, 34 * (1 - m.dug * .5), 14 * (1 - m.dug * .6)); c.fill(); c.fillStyle = '#b07d55'; c.beginPath(); ell(c, m.x - 6, 444, 16, 6); c.fill(); tuft(c, m.x + 12, 440, 6, '#6aaa50'); }
@@ -1507,8 +1551,20 @@ function level2() {
   L.overlay = c => { const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'rgba(255,240,200,.0)'); g.addColorStop(1, 'rgba(255,190,120,.10)'); c.fillStyle = g; c.fillRect(0, 0, W, H); };
   L.update = dt => { for (const b of L.butterflies) { b.ph += dt; b.x += Math.sin(b.ph * .5) * 40 * dt; b.y = 340 + Math.sin(b.ph * 1.3) * 40; } };
   L.ambient = dt => { if (Math.random() < dt * 1.2) part({ x: G.cam.x + rnd(0, W + 200), y: rnd(-10, 200), vx: rnd(-40, -15), vy: rnd(15, 35), life: 8, size: rnd(3, 4.5), col: rnd(0, 1) < .5 ? '#ffc7d4' : '#ffffff', type: 'petal', vr: rnd(-2, 2) }); };
-  L.sniffs = [{ x: 1848, when: () => !L.flags.frag, found: () => { L.mounds[1].glow = true; L.flags.sniffed = true; hint(null); } }];
+  L.sniffs = [{ x: 1836, when: () => !L.flags.frag, found: async () => {
+    L.flags.sniffed = true; hint(null); S.mode = 'stay'; S.stayX = S.x;
+    await until(() => Math.abs(P.x - S.x) < 150 && P.onGround && !G.pet && !G.cut);
+    cs(true); S.mode = 'script'; S.face = 1; P.face = P.x < S.x ? 1 : -1;
+    await say(S, 'Aqui.');
+    await say(P, 'Aqui onde?');
+    await say(S, 'Atrás disso.');
+    await say(P, 'Se você estiver me fazendo entrar nesse mato por causa de um biscoito…');
+    await say(S, 'Você fala como se fosse uma coisa ruim.');
+    cs(false); S.mode = 'stay'; S.stayX = S.x;
+    hint(isTouch ? 'Toque em Ação para afastar os galhos.' : 'Aperte E para afastar os galhos.');
+  } }];
   L.inter = [
+    { x: L.bush.x - 34, py: 360, r: 60, label: 'Afastar os galhos', when: () => !L.flags.frag, use: () => openBush() },
     ...L.mounds.map(m => ({ x: m.x, py: 380, r: 70, label: 'Cavar com o Snow', when: () => !m.dug, use: () => digMound(m) })),
     { x: 2690, py: 300, r: 80, label: () => L.flags.frag ? 'Abrir o portão' : 'Portão', when: () => !L.gate, use: async () => {
       if (!L.flags.frag) { toast('Ainda falta encontrar o fragmento de luz do jardim.'); emote(S, '?'); return; }
@@ -1516,7 +1572,36 @@ function level2() {
     } },
   ];
   L.triggers.push({ x: 960, fn: () => { if (!L.flags.frag && !L.flags.sniffed) hint(isTouch ? 'O fragmento está escondido. Toque em Farejar para o Snow procurar.' : 'O fragmento está escondido. Aperte F para o Snow farejar.'); } });
-  L.triggers.push({ x: 2780, fn: () => nextLevel() });
+  L.triggers.push({ x: 2780, fn: () => nextLevel(), when: () => !L.flags.linger });
+  L.triggers.push({ x: 2600, when: () => L.flags.linger && Math.abs(S.x - P.x) > 400, fn: () => hint('O Snow ficou para trás, perto do balanço.') });
+  L.reunion = () => { L.flags.linger = false; hint(null); chat([[P, 'Achei você.'], [S, 'Eu tava esperando.'], [P, 'Vamos?'], [S, 'Vamos.']]); S.mode = 'follow'; };
+  async function openBush() {
+    const b = L.bush; cs(true); hint(null);
+    await walkTo(P, b.x - 50, 140); P.face = 1; P.poseLock = 'kneel';
+    walkTo(S, b.x - 96, 160);
+    b.shake = 2; for (let i = 0; i < 5; i++) { SFX.rustle(); part({ x: b.x + rnd(-30, 30), y: rnd(400, 440), vx: rnd(-50, 50), vy: rnd(-80, -30), g: 200, life: 1.1, size: 5, col: '#5f9e4d', type: 'leaf', vr: 4 }); await sleep(.16); }
+    b.shake = 0; await until(() => (b.open = Math.min(1, b.open + .03)) >= 1);
+    SFX.shine(); sparkBurst(b.x, 426, 20);
+    P.expr = 'surprise'; await sleep(.6);
+    S.face = 1;
+    await say(P, 'Olha. Você achou mesmo.');
+    await say(S, 'Eu falei.');
+    P.expr = 'smile';
+    await say(P, 'Tá bom. Hoje eu sigo o seu nariz.');
+    await say(S, 'Só hoje?');
+    await collectFragment(b.x, 426);
+    L.flags.frag = true; P.poseLock = null;
+    await until(() => (b.open = Math.max(0, b.open - .03)) <= 0);
+    P.expr = 'happy';
+    await say(P, 'Viu? Já tá melhor.');
+    P.expr = 'smile';
+    await say(S, 'Falta o resto.');
+    await say(P, 'Vamos buscar.');
+    S.mode = 'celebrate'; S.celebT = 1.2; await sleep(1.2);
+    cs(false);
+    // o Snow fica um pouco para trás, olhando o balanço
+    S.mode = 'script'; await walkTo(S, 1690, 120); S.mode = 'stay'; S.stayX = 1690; L.flags.linger = true;
+  }
   async function digMound(m) {
     cs(true); hint(null);
     S.mode = 'script';
@@ -1662,15 +1747,14 @@ function level3() {
     for (const cm of [L.cameo, L.cameo2]) { const near = Math.abs(P.x - cm.x) < 300; cm.a = clamp(cm.a + (near ? -dt * 2 : dt * .5), 0, 1); if (near) cm.seen = true; if (cm.seen) cm.a = Math.max(0, cm.a - dt * 2); }
   };
   L.sniffs = [
-    { x: 2760, when: () => !L.bramOpen && P.x > 2300, found: async () => {
-      cs(true); hint(null); S.mode = 'script';
-      S.poseLock = 'dig'; for (let i = 0; i < 6; i++) { SFX.rustle(); for (let j = 0; j < 2; j++) part({ x: 2790, y: rnd(300, 440), vx: rnd(-60, 60), vy: rnd(-80, -20), g: 200, life: 1.2, size: 5, col: '#5d7d4f', type: 'leaf', vr: 4 }); await sleep(.18); }
-      S.poseLock = null;
-      await until(() => (L.bramOpen = Math.min(1, L.bramOpen + .02)) >= 1); L.bramble.off = true; SFX.shine();
-      S.mode = 'celebrate'; S.celebT = 1; await sleep(1);
-      await say(P, 'Uma passagem escondida! Como você sabia?');
-      SFX.bark1(); emote(S, '♪');
-      cs(false);
+    { x: 2752, when: () => !L.bramOpen && L.flags.atBram, found: async () => {
+      L.flags.pathFound = true; hint(null);
+      await until(() => Math.abs(P.x - 2752) < 140 && P.onGround && !G.pet);
+      cs(true); S.mode = 'script'; S.face = 1; P.face = 1;
+      await say(P, 'Você consegue passar?');
+      await say(S, 'Se você segurar esse galho.');
+      cs(false); S.mode = 'stay'; S.stayX = S.x; S.poseLock = 'sit';
+      hint(isTouch ? 'Toque em Ação para segurar o galho.' : 'Aperte E para segurar o galho.');
     } },
     { x: 3400, when: () => L.bramOpen && !L.flags.f3, found: async () => {
       L.flags.treeFound = true;
@@ -1687,12 +1771,35 @@ function level3() {
       S.carry = false; L.flags.f3 = true;
       await collectFragment(S.x + S.face * 24, S.y - 44);
       S.mode = 'celebrate'; S.celebT = 1.6; P.expr = 'happy'; emote(P, '♥'); await sleep(1.6); P.expr = 'smile';
-      await say(P, 'Agora são três! A estrela já está esquentando.');
       cs(false);
       hint('Siga a trilha de vaga-lumes até o lago.'); setTimeout(() => { if (hintText && hintText.startsWith('Siga a trilha')) hint(null); }, 5000);
     } },
   ];
   L.inter = [
+    { x: 2735, py: 300, r: 60, label: 'Segurar o galho', when: () => L.flags.pathFound && !L.bramOpen, use: async () => {
+      cs(true); hint(null); S.mode = 'script'; S.poseLock = null;
+      await walkTo(P, 2732, 120); P.face = 1; P.poseLock = 'offer'; SFX.rustle();
+      await until(() => (L.bramOpen = Math.min(.55, L.bramOpen + .02)) >= .55);
+      L.bramble.off = true;
+      await say(P, 'Vai devagar.');
+      S.wag = 1; S.poseLock = 'crawl'; await walkTo(S, 2800, 70);
+      await say(S, 'Eu tô indo devagar.');
+      await say(P, 'Seu rabo não tá.');
+      await walkTo(S, 2900, 80); S.poseLock = null; await walkTo(S, 2915, 120); S.face = -1; S.poseLock = 'sit';
+      await say(S, 'Agora você.');
+      await say(P, 'Não sai daí.');
+      await say(S, 'Tô aqui.');
+      P.poseLock = null;
+      await until(() => (L.bramOpen = Math.min(1, L.bramOpen + .03)) >= 1);
+      await walkTo(P, 2870, 110); P.face = 1;
+      S.poseLock = null; await walkTo(S, 2902, 60); S.face = -1; hearts(2888, 380, 3); SFX.pet(); S.wag = 1;
+      P.expr = 'happy';
+      await say(P, 'Pronto. Os dois.');
+      P.expr = 'smile';
+      await say(S, 'Você demorou.');
+      await say(P, 'Eu tenho que passar inteira, Snow.');
+      cs(false);
+    } },
     { x: 1665, py: 300, r: 60, label: 'Snow, passa por baixo!', when: () => !L.gateOpen, use: async () => {
       cs(true); hint(null);
       await walkTo(P, 1630, 150); P.face = 1;
@@ -1709,8 +1816,7 @@ function level3() {
       S.carry = false;
       await collectFragment(S.x - 24, S.y - 44);
       S.mode = 'celebrate'; S.celebT = 1.5; P.expr = 'happy'; await sleep(1.5); P.expr = 'smile';
-      await say(P, 'Que time a gente forma, hein?');
-      SFX.bark(); await say(S, 'Au!');
+      SFX.bark(); emote(S, '♥');
       cs(false);
     } },
   ];
@@ -1718,7 +1824,14 @@ function level3() {
   L.triggers.push({ x: 1120, fn: () => { if (hintText && hintText.startsWith('Pule pelas')) hint(null); } });
   L.triggers.push({ x: 1540, fn: () => { if (!L.gateOpen) hint('O portão está trancado do outro lado. Mas o Snow cabe naquele buraquinho...'); } });
   L.triggers.push({ x: 2330, fn: () => hint('Os cogumelos grandes são ótimos para pular!') });
-  L.triggers.push({ x: 2700, fn: () => { if (!L.bramOpen) hint(isTouch ? 'Espinhos fecham o caminho. Toque em Farejar: talvez o Snow conheça outra passagem.' : 'Espinhos fecham o caminho. Aperte F: talvez o Snow conheça outra passagem.'); } });
+  L.triggers.push({ x: 2690, when: () => P.onGround && !G.pet, fn: async () => {
+    cs(true); hint(null); P.face = 1;
+    await say(P, 'Acho que a gente vai ter que voltar.');
+    S.face = 1; SFX.sniff();
+    await say(S, 'Espera. Tem um caminho ali.');
+    L.flags.atBram = true; cs(false);
+    hint(isTouch ? 'Toque em Farejar para o Snow mostrar o caminho.' : 'Aperte F para o Snow mostrar o caminho.');
+  } });
   L.triggers.push({ x: 3260, fn: () => { if (!L.flags.f3 && !L.flags.treeFound) hint(isTouch ? 'Aquela árvore oca parece interessante. Toque em Farejar.' : 'Aquela árvore oca parece interessante. Aperte F.'); } });
   L.triggers.push({ x: 3780, when: () => L.flags.f3, fn: () => nextLevel() });
   L.script = async () => { cs(true); await sleep(.8); P.face = 1; emote(S, '♪'); cs(false); };
@@ -1779,6 +1892,7 @@ function level4() {
       drawSym(c, p.sym, p.x, 352, 13, lit > 0 ? mix('#cfd6f2', '#ffe07a', lit) : '#cfd6f2');
       c.strokeStyle = 'rgba(255,255,255,.3)'; c.lineWidth = 1.5; c.beginPath(); circ(c, p.x, 352, 24); c.stroke();
     }
+    if (L.solved && !L.drained && visible(2480, 90)) { const y = 420 + Math.sin(G.time * 2) * 5; glow(c, 2525, y, 50, '#fff1b0', .7); c.fillStyle = '#fffbe8'; sparkle(c, 2525, y, 7); }
     // gato no rochedo
     if (L.cameo.a > .01 && visible(L.cameo.x)) { c.fillStyle = '#4b587c'; c.beginPath(); ell(c, L.cameo.x + 10, 446, 46, 26); c.fill(); drawCat(c, { x: L.cameo.x + 6, y: 424, face: -1, pose: 'sit', walkT: 0, blink: 0, alpha: L.cameo.a, visible: true, look: 0 }); }
     // visão do lago (sequência)
@@ -1802,7 +1916,6 @@ function level4() {
     for (const sym of L.order) { L.show = { sym, t: 0, dur: 1.4 }; SFX.note(SYMS.indexOf(sym)); await sleep(1.5); }
     L.show = null; G.cam.fx = null; L.seqShown = true;
     await sleep(.3);
-    if (!L.flags.toldOrder) { L.flags.toldOrder = true; await say(P, 'O lago mostrou três lembranças... numa ordem.'); }
     cs(false); S.mode = 'follow';
     hint(isTouch ? 'Toque nas pedras dos pedestais na mesma ordem (botão Ação).' : 'Toque nas pedras dos pedestais na mesma ordem (tecla E).');
   }
@@ -1837,25 +1950,51 @@ function level4() {
     for (const s of L.stones) { s.off = false; s.y = s.baseY; SFX.note(L.stones.indexOf(s) % 4); sparkBurst(s.x + 40, s.y, 10, '#d8eeff'); await sleep(.28); }
     await sleep(.6); G.cam.fx = null; G.cam.spd = 3;
     S.mode = 'script'; S.face = 1;
-    await say(S, 'As lembranças viraram caminho. Vamos?');
+    await say('narr', 'As luzes recolhidas desenham uma passagem sobre o lago.');
     cs(false);
     hint('Atravesse o lago pelas pedras de luz.');
   }
+  L.script = async () => { cs(true); await sleep(.6); cs(false); };
   L.triggers.push({ x: 380, fn: () => hint(isTouch ? 'Peça para o Snow farejar a beira do lago (Farejar).' : 'Peça para o Snow farejar a beira do lago (F).') });
-  L.triggers.push({ x: 2340, when: () => L.solved, fn: async () => {
+  L.triggers.push({ x: 975, when: () => L.solved && P.onGround && !G.pet, fn: async () => {
+    cs(true); hint(null); P.face = 1; S.face = 1;
+    await say(P, 'Será que falta muito?');
+    await say(S, 'Um pedaço.');
+    await say(P, 'Do caminho ou da estrela?');
+    await say(S, 'Dos dois, eu acho.');
+    cs(false); hint('Atravesse o lago pelas pedras de luz.');
+  } });
+  L.triggers.push({ x: 2470, when: () => L.solved && P.onGround && !G.pet, fn: async () => {
     hint(null); cs(true); S.mode = 'script';
-    await sleep(.4); P.face = -1;
-    for (const s of L.stones) part({ x: s.x + 40, y: s.y, vx: 0, vy: -40, life: 1, size: 4, col: '#d8eeff', type: 'spark' });
-    L.drained = true; SFX.shine();
-    for (let i = 0; i < 3; i++) { const s = L.stones[3 + i * 2]; await flyOrbP(s.x + 40, s.y, null, null); }
-    G.starB = .85; P.face = 1;
-    await say(P, 'Ela está quase brilhando!');
-    S.face = -1; S.poseLock = 'sit';
-    await say(S, 'Falta só um pouquinho. O Jardim das Estrelas é logo ali.');
-    S.poseLock = null; cs(false);
+    await walkTo(P, 2495, 120); P.face = 1;
+    SFX.shine(); sparkBurst(2525, 420, 24);
+    await collectFragment(2525, 420);
+    L.drained = true; G.flash = .5;
+    P.expr = 'surprise'; await sleep(.8);
+    await say(P, 'Snow, olha…');
+    await say(S, 'Agora dá pra ver todas as pontas.');
+    P.expr = 'happy';
+    await say(P, 'A gente conseguiu.');
+    P.expr = 'smile';
+    // sentam juntos na margem
+    await walkTo(S, 2372, 110); S.face = -1; S.poseLock = 'sit';
+    await walkTo(P, 2426, 110); P.face = -1; P.poseLock = 'kneel';
+    G.cam.fx = 2330; G.cam.spd = 1.2; G.zoomTo = 1.32;
+    await sleep(1);
+    await say(P, 'Quer ficar um pouquinho?');
+    await say(S, 'Quero.');
+    await sleep(1.2);
+    await say(P, 'Tá bonito aqui.');
+    await say(S, 'Tá.');
+    await scriptPet(4.5, 'sit', 'kneel');
+    await sleep(4.5);
+    await say(P, 'Vamos?');
+    S.poseLock = null; S.wag = 1;
+    await say(S, 'Vamos. Tá pertinho.');
+    P.poseLock = null; G.cam.fx = null; G.cam.spd = 3; G.zoomTo = 1.18;
+    cs(false);
   } });
   L.triggers.push({ x: 2900, when: () => L.drained, fn: () => nextLevel() });
-  L.script = async () => { cs(true); await sleep(.6); await say('narr', 'Dizem que este lago guarda as lembranças de quem se ama.'); cs(false); };
   return L;
 }
 
@@ -1911,7 +2050,6 @@ function level5() {
   L.triggers.push({ x: 860, fn: () => hint(null) });
   L.script = async () => {
     cs(true); await sleep(.8);
-    await say('narr', 'O Jardim das Estrelas. Aqui, toda luz encontra o seu lugar.');
     S.mode = 'celebrate'; S.celebT = 1; await sleep(1);
     cs(false);
     hint('Leve a estrela até o altar. Não tem pressa.');
@@ -1923,76 +2061,108 @@ function level5() {
     P.poseLock = 'offer'; G.starHold = { x: 968, y: 384 }; await sleep(1.4);
     G.starHold = { x: 1000, y: 330 }; P.poseLock = null;
     await sleep(.8);
-    L.altarB = 1; SFX.shine();
-    for (let i = 0; i < 40; i++) { G.starB = Math.min(1, G.starB + .004); sparkBurst(STAR.x, STAR.y, 2, '#ffe9a0'); await sleep(.04); }
-    G.starB = 1; G.starAwake = true; G.flash = .7; SFX.frag();
-    await sleep(1);
-    // sobe para o céu
-    G.starHold = { x: 1000, y: 178 };
-    await until(() => Math.abs(STAR.y - 178) < 8);
-    G.hasStar = false; G.bigStar = { x: 1000, y: 178, b: 0 };
-    sparkBurst(1000, 178, 40, '#fff3c0'); SFX.shine();
-    await until(() => { G.bigStar.b = Math.min(1, G.bigStar.b + .02); G.sky = Math.min(1, G.sky + .015); return G.bigStar.b >= 1; });
-    S.poseLock = null; S.look = 0; S.mode = 'celebrate'; S.celebT = 1.8; P.expr = 'happy'; emote(P, '♥'); SFX.bark();
-    await sleep(2.2);
-    S.mode = 'script'; S.poseLock = 'sit'; S.face = 1; P.expr = 'smile';
-    setMood('fim');
-    await sleep(3);
-    // o gato chega
-    G.cam.fx = 960; G.cam.spd = 1; G.zoomTo = 1.32;
-    C.visible = true; C.alpha = 1; C.x = 470; C.y = 450; C.pose = 'walk'; C.face = 1;
-    await sleep(1.2); SFX.meow();
-    P.face = -1; P.expr = 'surprise'; emote(P, '!'); S.face = -1;
-    await walkTo(C, 800, 70); C.pose = 'sit';
-    P.expr = 'smile';
-    await say(P, `${catName()}? Você veio atrás da gente?`);
-    S.poseLock = null; await walkTo(S, 842, 70); S.face = -1; S.poseLock = 'sit';
-    C.look = 1; await sleep(.6); hearts(822, 410, 2); SFX.pet(); await sleep(1.2);
-    await say(S, 'Fica perto dela, tá? Agora a missão de cuidar da Taís é sua.');
-    await say(S, 'Eu vou descansar, mas lá do céu também vou continuar cuidando dela.');
+    L.altarB = 1; SFX.shine(); startSong();
+    for (let i = 0; i < 30; i++) { sparkBurst(STAR.x, STAR.y, 2, '#ffe9a0'); await sleep(.04); }
+    G.starAwake = true; G.flash = .5;
     await sleep(.8);
-    C.slowBlink = 1.2; await sleep(1.3); SFX.meow(); emote(C, '♥'); await sleep(1);
-    // o gato vai até a Taís e encosta nela
-    S.poseLock = null; await walkTo(S, 870, 50); S.face = -1; S.poseLock = 'sit';
-    C.pose = 'walk'; C.look = 0; await walkTo(C, 918, 60); C.face = 1; C.pose = 'rub'; SFX.purr();
-    P.face = -1; P.expr = 'teary';
-    for (let i = 0; i < 6; i++) { hearts(C.x + 10, C.y - 40, 1); await sleep(.4); }
-    C.pose = 'sit'; C.x = 920;
-    await sleep(1.4);
-    // último carinho
-    S.poseLock = null; await walkTo(S, 1000, 90); S.face = -1; S.poseLock = 'sit'; S.look = 1; S.wag = 1;
-    P.face = 1; P.expr = 'smile'; await sleep(.8);
-    G.allowPet = true; G.petLong = true;
-    hint(isTouch ? 'Faça um último carinho no Snow (♥).' : 'Faça um último carinho no Snow (C ou ♥).');
-    const n = G.petCount; await until(() => G.petCount > n);
-    hint(null); G.allowPet = false; G.petLong = false;
-    S.mode = 'script'; S.poseLock = 'sit'; S.look = 1; await sleep(.8);
-    await say(S, 'Obrigado por me amar tanto, Taís. Eu te amo. Pra sempre.');
-    P.expr = 'teary'; await sleep(.8);
-    await say(P, 'Eu também te amo, Snow. Pode descansar.');
-    await sleep(1.2);
-    // descanso
-    S.poseLock = null; S.look = 0; G.cam.fx = 1130; G.zoomTo = 1.22;
-    await walkTo(S, 1395, 70);
-    for (let i = 0; i < 4; i++) { S.face *= -1; S.x += S.face * 4; await sleep(.45); }
-    S.face = -1; S.poseLock = 'lie'; SFX.sigh(); await sleep(2.2);
-    S.poseLock = 'sleep'; S.wag = .1;
-    await until(() => (L.bedLight = Math.min(1, L.bedLight + .006)) >= 1);
-    await sleep(1.5);
-    G.snowStar = { x: 1395, y: 410, b: .4 };
-    await until(() => { S.alpha = Math.max(0, S.alpha - .004); if (Math.random() < .5) part({ x: S.x + rnd(-30, 30), y: S.y - rnd(0, 40), vy: rnd(-50, -20), life: 2, size: rnd(2, 3.5), col: '#fff3c0', type: 'spark' }); return S.alpha <= 0; });
-    S.mode = 'hidden';
-    await until(() => { const s = G.snowStar; s.y = lerp(s.y, 205, .012); s.x = lerp(s.x, 1170, .008); s.b = Math.min(1, s.b + .004); return s.y < 211; });
-    SFX.shine(); sparkBurst(G.snowStar.x, G.snowStar.y, 20, '#fff3c0');
-    P.face = 1; await sleep(4);
-    G.fadeTo = 1; G.fadeSpd = .35; await until(() => G.fade >= .999);
+    // sobe devagar e encontra seu lugar no céu
+    G.starHold = { x: 1000, y: 178 }; G.starSlow = true;
+    await until(() => Math.abs(STAR.y - 178) < 8);
+    G.starSlow = false; G.hasStar = false; G.bigStar = { x: 1000, y: 178, b: 0 };
+    sparkBurst(1000, 178, 40, '#fff3c0'); SFX.shine();
+    await until(() => { G.bigStar.b = Math.min(1, G.bigStar.b + .015); G.sky = Math.min(1, G.sky + .012); return G.bigStar.b >= 1; });
+    S.look = 1; await sleep(1);
+    await say(P, 'Pronto.');
+    await say(S, 'Pronto.');
+    await sleep(1);
+    setMood('fim');
+    P.face = -1; S.face = -1; await sleep(1.4);
+    await say(P, 'Então… agora a gente volta?');
+    // Snow se acomoda na grama macia
+    G.cam.fx = 1180; G.cam.spd = 1; G.zoomTo = 1.3;
+    S.poseLock = null; S.look = 0; await walkTo(S, 1395, 80);
+    for (let i = 0; i < 2; i++) { S.face *= -1; await sleep(.45); }
+    S.face = -1; S.poseLock = 'lie'; SFX.sigh(); await sleep(1.2);
+    P.face = 1;
+    await say(S, 'Você volta.');
+    await say(P, 'E você?');
+    await say(S, 'Eu vou descansar aqui.');
+    P.expr = 'sad';
+    await say(P, 'Snow…');
+    await say(S, 'Vem cá.');
+    await walkTo(P, 1341, 90); P.face = 1; P.poseLock = 'kneel';
+    G.cam.fx = 1340; G.zoomTo = 1.38;
+    await sleep(.8);
+    P.expr = 'teary';
+    await say(P, 'Eu queria mais tempo.');
+    await say(S, 'Eu também.');
+    await scriptPet(3.6, 'lie', 'kneel');
+    await say(P, 'Eu achei que doze anos fosse muito tempo.');
+    await sleep(2.6);
+    await say(P, 'Passou tão depressa.');
+    await say(S, 'Eu gostei de estar com você.');
+    await say(P, 'Mesmo quando eu te acordava só pra fazer carinho?');
+    await say(S, 'Principalmente.');
+    P.expr = 'happy'; await sleep(1.4); P.expr = 'teary';
+    // o gato chega e se senta ao lado dela
+    C.visible = true; C.alpha = 1; C.x = G.cam.x - 30; C.y = 450; C.pose = 'walk'; C.face = 1;
+    await walkTo(C, 1292, 70); C.pose = 'sit'; C.face = 1;
+    await sleep(.8);
+    S.look = 1;
+    await say(S, 'Ei. Chega mais perto.');
+    C.look = 1;
+    await say(C, 'Aqui?');
+    await say(S, 'É. Perto dela.');
+    await sleep(.6);
+    await say(S, 'Agora a missão de cuidar da Taís é sua.');
+    await say(C, 'Eu cuido.');
+    await say(S, 'Faz companhia. Fica junto dela, mesmo quando ela não chamar.');
+    await say(C, 'Eu sei ficar junto.');
+    await say(S, 'Eu sei que sabe.');
+    C.look = 0; C.pose = 'walk'; await walkTo(C, 1312, 40); C.pose = 'rub'; SFX.purr();
+    for (let i = 0; i < 4; i++) { hearts(C.x + 8, C.y - 40, 1); await sleep(.4); }
+    C.pose = 'sit';
+    await say(S, 'Eu vou descansar. Mas lá do céu também vou continuar cuidando dela.');
+    await say(C, 'Então a gente cuida junto?');
+    await say(S, 'Junto.');
+    await sleep(.8);
+    P.face = -1; await sleep(.8); P.face = 1;
+    P.expr = 'smile';
+    await say(P, 'Eu tô ouvindo, sabia?');
+    await say(S, 'Eu sei.');
+    await say(P, 'E eu também vou cuidar dele.');
+    await say(S, 'Eu sei disso também.');
+    await sleep(.8);
+    await say(S, 'Mais um carinho?');
+    P.expr = 'teary';
+    await say(P, 'Quantos você quiser.');
+    // a cena espera pelo jogador
+    G.allowPet = true; G.petLong = true; G.petKeepS = 'lie'; G.petKeepP = 'kneel';
+    hint(isTouch ? 'Fazer carinho no Snow (♥)' : 'Fazer carinho no Snow (C ou ♥)');
+    $('bPet').classList.add('ready');
+    const n = G.petCount; await until(() => G.petCount > n && !G.pet);
+    hint(null); $('bPet').classList.remove('ready'); G.allowPet = false; G.petLong = false; G.petKeepS = G.petKeepP = null;
+    await sleep(.6);
+    await say(P, 'Eu te amo, Snow.');
+    await say(S, 'Eu também te amo, Taís.');
+    await sleep(1);
+    // ele repousa a cabeça e fecha os olhos, tranquilo
+    S.poseLock = 'sleep'; S.wag = .1; SFX.sigh();
+    await sleep(2);
+    C.pose = 'sleep';
+    await until(() => (L.bedLight = Math.min(1, L.bedLight + .004)) >= 1);
+    await sleep(3);
+    G.snowStar = { x: 1430, y: 205, b: 0 };
+    await until(() => (G.snowStar.b = Math.min(1, G.snowStar.b + .006)) >= 1);
+    await sleep(3);
+    G.fadeTo = 1; G.fadeSpd = .22; await until(() => G.fade >= .999);
     startEpilogue();
   }
   return L;
 }
 
 const LEVELS = [level1, level2, level3, level4, level5];
-const START = [{ star: false, fr: 0, b: 0 }, { star: true, fr: 0, b: .08 }, { star: true, fr: 1, b: .32 }, { star: true, fr: 3, b: .74 }, { star: true, fr: 3, b: .85 }];
+const START = [{ star: false, fr: 0, b: 0 }, { star: true, fr: 0, b: .08 }, { star: true, fr: 1, b: .3 }, { star: true, fr: 3, b: .6 }, { star: true, fr: 4, b: 1 }];
 
 /* =========================================================
    Fragmentos
@@ -2011,8 +2181,8 @@ function updOrbs(dt) {
 }
 async function collectFragment(x, y) {
   await flyOrbP(x, y, null, null);
-  G.frag++; G.starB = START[0].b + .08 + G.frag * .22; SFX.frag(); G.flash = .35;
-  updHUD(); toast(`Fragmento de luz ${G.frag} de 3`, 'A estrela ficou mais forte');
+  G.frag++; G.starB = G.frag >= 4 ? 1 : .3 * G.frag; SFX.frag(); G.flash = .35;
+  updHUD(); toast(G.frag >= 4 ? 'A estrela se acendeu por completo.' : `Fragmento de luz ${G.frag} de 4`, G.frag >= 4 ? 'Todas as pontas' : 'Uma ponta acendeu');
 }
 
 /* =========================================================
@@ -2021,13 +2191,13 @@ async function collectFragment(x, y) {
 function cs(on) {
   G.cut = on;
   if (on) { if (S.mode !== 'hidden') S.mode = 'script'; P.vx = 0; S.auto = null; }
-  else { if (S.mode !== 'hidden') { S.mode = 'follow'; S.poseLock = null; } P.poseLock = null; }
+  else { if (S.mode !== 'hidden') { S.mode = G.L && G.L.flags.linger ? 'stay' : 'follow'; S.poseLock = null; } P.poseLock = null; }
 }
 function resetEntity(e) { e.vx = e.vy = 0; e.auto = null; e.leap = null; e.poseLock = null; e.alpha = 1; e.onGround = true; }
 function loadLevel(i) {
   waiters = []; G.bubble = null; G.emotes = []; G.tags = []; G.parts = []; G.decals = []; G.orbs = []; G.pet = null;
   G.li = i; G.L = LEVELS[i](); const L = G.L;
-  G.cut = false; G.allowPet = false; G.petLong = false; G.starHold = null; G.bigStar = null; G.snowStar = null; G.starAwake = false; G.sky = 0; G.falling = null; G.flash = 0;
+  G.cut = false; G.allowPet = false; G.petLong = false; G.starHold = null; G.bigStar = null; G.snowStar = null; G.starAwake = false; G.sky = 0; G.falling = null; G.flash = 0; G.floorStar = null; G.starSlow = false; G.chat = null; G.chatQ = null; G.sniffQueued = false; G.petKeepS = G.petKeepP = null;
   G.respawnT = 0;
   const st = START[i]; G.hasStar = st.star; G.frag = st.fr; G.starB = st.b;
   resetEntity(P); resetEntity(S); resetEntity(C);
@@ -2058,8 +2228,8 @@ function updHUD() {
   const el = $('hudFrag');
   if (!G.hasStar && G.li === 0) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = [0, 1, 2].map(i => `<span class="frag">${STAR_SVG(i < G.frag)}</span>`).join('');
-  el.setAttribute('aria-label', `${G.frag} de 3 fragmentos de luz`);
+  el.innerHTML = [0, 1, 2, 3].map(i => `<span class="frag">${STAR_SVG(i < G.frag)}</span>`).join('');
+  el.setAttribute('aria-label', `${G.frag} de 4 fragmentos de luz`);
 }
 
 /* =========================================================
@@ -2145,6 +2315,7 @@ function sniffAI(dt) {
   }
 }
 function doSniff() {
+  if (G.mode === 'play' && !G.cut && (S.leap || G.pet)) { G.sniffQueued = true; return; }
   if (G.mode !== 'play' || G.cut || G.pet || G.bubble || S.mode === 'hidden' || S.leap || G.respawnT > 0) return;
   if (S.mode === 'sniff') return;
   const tg = (G.L.sniffs || []).find(t => !t.done && (!t.when || t.when()) && Math.abs(t.x - P.x) < 1400);
@@ -2159,8 +2330,20 @@ function doPet() {
   if (G.mode !== 'play' || G.pet || G.bubble || G.respawnT > 0) return;
   if (G.cut && !G.allowPet) return;
   if (!P.onGround || P.leap || S.mode === 'hidden' || S.leap || S.mode === 'sniff' || P.auto) return;
-  G.pet = { ph: 'come', t: 0, dur: G.petLong ? 4.6 : 2.4, prev: S.mode, spot: null };
+  G.pet = { ph: 'come', t: 0, dur: G.petLong ? 4.6 : 2.4, prev: S.mode, spot: null, keepS: G.petKeepS, keepP: G.petKeepP };
+  if (G.L.flags.linger && G.L.reunion) G.L.reunion();
   S.mode = 'script'; S.poseLock = null; P.vx = 0;
+}
+function scriptPet(dur, keepS, keepP) {
+  S.face = -P.face; S.vx = 0; P.poseLock = 'kneel'; S.poseLock = 'petted';
+  G.pet = { ph: 'pet', t: 0, dur, prev: 'script', spot: S.x, dir: P.face, keepS, keepP, quiet: true, expr: P.expr };
+  return until(() => !G.pet);
+}
+function chat(lines) { G.chatQ = lines.map(([who, text]) => ({ who, text, shown: text.length, age: 0, chat: true, dur: Math.max(1.9, text.length * .07) })); G.chat = null; }
+function updChat(dt) {
+  if (G.bubble) return;
+  if (!G.chat && G.chatQ && G.chatQ.length) { G.chat = G.chatQ.shift(); SFX.blip(G.chat.who === S ? 'snow' : 'tais'); }
+  if (G.chat) { G.chat.age += dt; if (G.chat.age > G.chat.dur) G.chat = null; }
 }
 function updPet(dt) {
   const g = G.pet; g.t += dt;
@@ -2180,8 +2363,10 @@ function updPet(dt) {
     if (Math.floor(g.t / .32) !== Math.floor((g.t - dt) / .32)) hearts(S.x + S.face * 30, S.y - 66, 1);
     S.wag = 1;
     if (g.t > g.dur) {
-      P.poseLock = null; P.hand = null; S.poseLock = null; P.expr = G.petLong ? 'teary' : (g.expr === 'teary' ? 'smile' : g.expr || 'smile');
-      G.petCount++; emote(S, '♥'); S.mode = G.cut ? 'script' : (g.prev === 'stay' ? 'stay' : 'follow'); S.stayX = S.x; G.pet = null;
+      P.poseLock = g.keepP || null; P.hand = null; S.poseLock = g.keepS || null; P.expr = G.petLong || g.quiet ? 'teary' : (g.expr === 'teary' ? 'smile' : g.expr || 'smile');
+      if (!g.quiet) G.petCount++;
+      emote(S, '♥'); S.mode = G.cut ? 'script' : (g.prev === 'stay' ? 'stay' : 'follow'); S.stayX = S.x; G.pet = null;
+      if (!G.cut && !g.quiet && G.li > 0 && Math.random() < .35) chat([[S, 'Aí. Bem aí.'], [P, 'Aqui?'], [S, 'Isso. Não muda.']]);
     }
   }
 }
@@ -2230,7 +2415,7 @@ function updCat(dt) {
 function step(dt) {
   if (I.jumpBuf > 0) I.jumpBuf -= dt;
   if (I.q.has('pause')) { if (G.mode === 'play') pause(true); else if (G.paused) pause(false); }
-  if (G.mode === 'epi') { G.time += dt; updEpi(dt); updParts(dt); return; }
+  if (G.mode === 'epi') { if (I.q.has('act') || I.q.has('tap') || I.q.has('jump')) advanceBubble(); G.time += dt; updEpi(dt); updParts(dt); return; }
   if (G.mode === 'title') { G.time += dt; updParts(dt); return; }
   if (G.mode !== 'play' || G.paused) return;
   G.time += dt;
@@ -2240,12 +2425,13 @@ function step(dt) {
   if (I.q.has('act')) { if (G.bubble) advanceBubble(); else if (G.prompt && !G.cut && !G.pet) G.prompt.use(G.prompt); }
   if (I.q.has('tap') && G.bubble) advanceBubble();
   if (I.q.has('sniff')) doSniff();
+  else if (G.sniffQueued && !S.leap && !G.pet) { G.sniffQueued = false; doSniff(); }
   if (I.q.has('pet')) doPet();
   // plataformas que balançam
   for (const s of L.solids) if (s.bob && !s.off) { const ny = s.baseY + Math.sin(G.time * s.bs + s.ph) * s.ba; s.dy = ny - s.y; s.y = ny; for (const b of [P, S]) if (b.onGround && b.ground === s) b.y += s.dy; }
   L.update(dt);
   updPlayer(dt); updSnow(dt); updCat(dt); updStar(dt); updOrbs(dt);
-  L.ambient(dt); updParts(dt); updBubble(dt);
+  L.ambient(dt); updParts(dt); updBubble(dt); updChat(dt);
   for (const m of G.emotes) m.t += dt; G.emotes = G.emotes.filter(m => m.t < m.dur);
   for (const g of G.tags) g.t += dt; G.tags = G.tags.filter(g => g.t < g.dur);
   if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * .8);
@@ -2253,6 +2439,8 @@ function step(dt) {
   for (const m of L.mems) if (!G.mem.has(m.id) && Math.abs(P.x - m.x) < 34 && Math.abs(P.y - 56 - m.y) < 64) {
     G.mem.add(m.id); SAVE.mem = [...G.mem]; writeSave(); SFX.pick(); sparkBurst(m.x, m.y, 14); toast(m.text, 'Lembrança'); if (S.mode === 'follow') { emote(S, '♥'); S.wag = 1; }
   }
+  // reencontro depois de explorar
+  if (L.flags.linger && S.mode === 'stay') { const d = Math.abs(P.x - S.x); if (d > 380) L.flags.wentFar = true; if (L.flags.wentFar && d < 140 && !G.cut && P.onGround) L.reunion(); }
   // gatilhos
   for (const t of L.triggers) if (!t.done && P.x > t.x && (!t.when || t.when())) { t.done = true; t.fn(); }
   // pontos de retorno
@@ -2266,7 +2454,7 @@ function step(dt) {
       const t = landingNear(P.x, G.cp.y, P.face); S.leap = null; S.x = t.x; S.y = t.y; S.vx = S.vy = 0; if (!G.cut) S.mode = 'follow';
       G.cam.x = clamp(P.x - VW() / 2, 0, L.w - VW());
     }
-    if (G.respawnT <= 0) { emote(S, '♥'); S.wag = 1; }
+    if (G.respawnT <= 0) { emote(S, '♥'); S.wag = 1; if (!G.cut && (!L.flags.fellTalk || Math.random() < .5)) { L.flags.fellTalk = true; chat([[P, 'Era pra eu ter pulado antes.'], [S, 'Vamos de novo. Eu espero aqui.']]); } }
   }
   // interação próxima
   G.prompt = null;
@@ -2282,7 +2470,6 @@ function step(dt) {
 function startRespawn() {
   G.respawnT = 1; G.respawned = false; G.falls++;
   if (P.y < 520) { SFX.splash(); for (let i = 0; i < 14; i++) part({ x: P.x + rnd(-10, 10), y: 462, vx: rnd(-90, 90), vy: rnd(-260, -120), g: 900, life: .9, size: rnd(2, 4), col: '#cfe8ff', type: 'drop' }); }
-  if (G.falls === 1) toast('Tudo bem! Vamos tentar de novo, pertinho daqui.');
 }
 let lastAct = '';
 function updActLabel() {
@@ -2318,7 +2505,7 @@ function drawWorld(c) {
   if (G.falling) { glow(c, G.falling.x, G.falling.y, 40, '#fff1b0', .8); c.fillStyle = '#fff'; sparkle(c, G.falling.x, G.falling.y, 6); }
   drawSnow(c, S);
   drawTais(c, P);
-  if (G.hasStar) drawStar(c, STAR.x, STAR.y, 13 + G.starB * 3, G.starB, G.starAwake);
+  if (G.hasStar) drawStar(c, STAR.x, STAR.y, 14, G.frag >= 4 ? 1 : .08, G.starAwake, G.frag >= 4 ? 5 : G.frag);
   for (const o of G.orbs) { glow(c, o.x, o.y, 30, '#fff1b0', .8); c.fillStyle = '#fffbe8'; sparkle(c, o.x, o.y, 6); }
   L.drawFront(c, cx);
   drawParts(c);
@@ -2327,6 +2514,7 @@ function drawWorld(c) {
   L.overlay(c);
   c.save(); c.scale(Z, Z); c.translate(-cx, -oy); drawPrompt(c); drawEmotes(c); c.restore();
   drawBubble(c);
+  if (!G.bubble && G.chat) drawBubble(c, G.chat);
 }
 
 /* =========================================================
@@ -2361,16 +2549,39 @@ function startEpilogue() {
   G.fade = 1; G.fadeTo = 0; G.fadeSpd = .3;
   setMood('fim');
   const p = P; resetEntity(p); p.x = 392; p.y = 400; p.face = 1; p.expr = 'smile'; p.hand = null;
-  const k = C; resetEntity(k); k.visible = true; k.x = 452; k.y = 400; k.face = 1; k.pose = 'sleep'; k.alpha = 1;
+  const k = C; resetEntity(k); k.visible = true; k.x = 780; k.y = 400; k.face = -1; k.pose = 'walk'; k.alpha = 1; k.look = 0;
+  EP.blanket = 0; EP.petting = false; G.bubble = null; G.chat = null;
   SAVE.level = 0; SAVE.done = true; writeSave();
+  epiScript();
 }
+async function epiScript() {
+  await sleep(3.5);
+  await walkTo(C, 540, 60); C.pose = 'sit'; C.face = -1;
+  await sleep(.8);
+  await say(C, 'Você vai ficar acordada?');
+  await say(P, 'Só mais um pouquinho.');
+  await say(C, 'Então abre espaço.');
+  P.expr = 'happy'; await until(() => (EP.blanket = Math.min(1, EP.blanket + .02)) >= 1); P.expr = 'smile';
+  await say(P, 'Vem.');
+  C.pose = 'walk'; await walkTo(C, 456, 50); C.face = 1; C.pose = 'sleep'; SFX.purr();
+  await sleep(.6); EP.petting = true;
+  await sleep(2.5);
+  await say(P, 'Boa noite, Snow.');
+  await sleep(.8);
+  EP.nuzzle = 1; SFX.meow(); for (let i = 0; i < 3; i++) { part({ x: 470, y: 340, vx: rnd(-15, 15), vy: -40, life: 1.4, size: 7, col: '#ff7d9b', type: 'heart' }); await sleep(.4); }
+  EP.twinkle = 1.4; SFX.shine();
+  await sleep(5);
+  if (!EP.shownEnd) { EP.shownEnd = true; showEnd(); }
+}
+const epiX = e => e.x;
+const epiTop = e => e === P ? P.y - 160 : C.y - (C.pose === 'sit' ? 100 : C.pose === 'walk' ? 76 : 52);
 function updEpi(dt) {
   EP.t += dt; EP.twinkle = Math.max(0, EP.twinkle - dt);
   if (G.fade > G.fadeTo) G.fade = Math.max(G.fadeTo, G.fade - dt * G.fadeSpd);
   P.blinkT -= dt; if (P.blinkT < 0) { P.blink = 1; P.blinkT = rnd(3, 6); } P.blink = Math.max(0, P.blink - dt * 8);
   C.blinkT -= dt;
-  P.hand = { x: 424 + Math.sin(EP.t * .9) * 3, y: 392 };
-  if (EP.t > 15 && !EP.shownEnd) { EP.shownEnd = true; showEnd(); }
+  P.hand = EP.petting ? { x: 424 + Math.sin(EP.t * .9) * 3, y: 392 } : null;
+  updCat(dt); updBubble(dt); updWaiters();
   if (Math.random() < dt * 2) part({ x: rnd(560, 760), y: rnd(80, 260), vx: rnd(-5, 5), vy: rnd(-5, 5), life: rnd(2, 4), size: rnd(1, 2), col: '#fff3d0', type: 'mote' });
 }
 function epiTap(e) {
@@ -2407,19 +2618,17 @@ function drawEpi(c) {
   P.pose = 'sit';
   const big = (x, y, fn) => { c.save(); c.translate(x, y); c.scale(1.7, 1.7); c.translate(-x, -y); fn(); c.restore(); };
   big(P.x, P.y, () => drawTais(c, P));
+  if (EP.blanket > 0) big(P.x, P.y, () => {
+    c.save(); c.globalAlpha = EP.blanket; c.translate(P.x, P.y);
+    c.fillStyle = '#c9a8dc'; c.strokeStyle = '#8f6aa6'; c.lineWidth = 1.4; c.beginPath();
+    c.moveTo(-14, -10); c.quadraticCurveTo(8, -18 + (1 - EP.blanket) * 10, 30, -8); c.quadraticCurveTo(36, 6, 30, 18); c.quadraticCurveTo(6, 24, -16, 16); c.quadraticCurveTo(-22, 2, -14, -10); c.fill(); c.stroke();
+    c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-10, -2); c.lineTo(28, -2); c.moveTo(-12, 8); c.lineTo(30, 8); c.moveTo(4, -12); c.lineTo(2, 20); c.moveTo(18, -12); c.lineTo(17, 20); c.stroke();
+    c.restore(); });
   big(C.x, C.y, () => drawCat(c, C));
   glow(c, 600, 300, 260, '#cfd8ff', .08);
   drawParts(c);
-  // texto
-  const lines = [['Algumas missões terminam.', 4], ['Outras passam de pata em pata.', 7.5], ['E o amor continua brilhando.', 11]];
-  c.textAlign = 'center'; c.textBaseline = 'middle';
-  for (let i = 0; i < lines.length; i++) {
-    const [txt, at] = lines[i]; const end = i < lines.length - 1 ? lines[i + 1][1] : 1e9;
-    const a = clamp((t - at) / 1.4, 0, 1) * clamp((end - t) / .8, 0, 1); if (a <= 0) continue;
-    c.globalAlpha = a; c.font = `italic 600 24px ${FONT}`; c.fillStyle = '#fff3e4'; c.fillText(txt, W / 2, 478);
-  }
-  c.globalAlpha = 1;
   const v = c.createRadialGradient(W / 2, H / 2, H * .35, W / 2, H / 2, H * .9); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(20,10,30,.4)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+  drawBubble(c);
 }
 
 /* =========================================================
@@ -2433,6 +2642,7 @@ function pause(on) {
   if (on) $('btnResume').focus();
 }
 function startGame(level = 0) {
+  stopSong();
   showScreen('scrTitle', false); showScreen('scrCat', false); showScreen('scrEnd', false);
   $('hud').hidden = false; $('touch').hidden = false; document.body.classList.remove('hidectl');
   if (isTouch && !G.rotateSeen) { G.rotateSeen = true; $('rotate').hidden = false; setTimeout(() => $('rotate').hidden = true, 9000); }
@@ -2441,6 +2651,7 @@ function startGame(level = 0) {
   loadLevel(level);
 }
 function goTitle() {
+  stopSong();
   G.mode = 'title'; G.paused = false; waiters = []; G.bubble = null; hint(null);
   showScreen('scrPause', false); showScreen('scrEnd', false); showScreen('scrTitle', true);
   $('hud').hidden = true; $('touch').hidden = true; document.body.classList.remove('hidectl');
@@ -2520,6 +2731,8 @@ $('btnPause').addEventListener('click', () => pause(true));
 $('btnResume').addEventListener('click', () => pause(false));
 $('btnRestartLevel').addEventListener('click', () => { pause(false); const lv = G.li; G.mem.forEach(id => { if (G.L.mems.some(m => m.id === id)) G.mem.delete(id); }); loadLevel(lv); });
 $('btnHome').addEventListener('click', goTitle);
+$('songFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if (!f) return; setSongBlob(f, f.name); songStore({ blob: f, name: f.name }); e.target.value = ''; });
+$('songClear').addEventListener('click', () => { setSongBlob(null, ''); songStore(null); });
 $('btnRotateOk').addEventListener('click', () => $('rotate').hidden = true);
 $('btnAgain').addEventListener('click', () => { showScreen('scrEnd', false); startGame(0); });
 $('btnStay').addEventListener('click', () => { showScreen('scrEnd', false); setTimeout(() => { if (G.mode === 'epi') showScreen('scrEnd', true); }, 25000); });
@@ -2528,7 +2741,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && G.m
 /* =========================================================
    Início
    ========================================================= */
-loadSave(); layout(); setSound(false); refreshContinue(); G.fade = 0; G.fadeTo = 0;
+loadSave(); layout(); setSound(false); refreshContinue(); songLoad(); G.fade = 0; G.fadeTo = 0;
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(1 / 30, Math.max(0, (now - last) / 1000)); last = now;
