@@ -2066,10 +2066,10 @@ function level5() {
     G.starAwake = true; G.flash = .5;
     await sleep(.8);
     // sobe devagar e encontra seu lugar no céu
-    G.starHold = { x: 1000, y: 178 }; G.starSlow = true;
+    G.starHold = { x: 1120, y: 178 }; G.starSlow = true;
     await until(() => Math.abs(STAR.y - 178) < 8);
-    G.starSlow = false; G.hasStar = false; G.bigStar = { x: 1000, y: 178, b: 0 };
-    sparkBurst(1000, 178, 40, '#fff3c0'); SFX.shine();
+    G.starSlow = false; G.hasStar = false; G.bigStar = { x: STAR.x, y: 178, b: 0 };
+    sparkBurst(STAR.x, 178, 40, '#fff3c0'); SFX.shine();
     await until(() => { G.bigStar.b = Math.min(1, G.bigStar.b + .015); G.sky = Math.min(1, G.sky + .012); return G.bigStar.b >= 1; });
     S.look = 1; await sleep(1);
     await say(P, 'Pronto.');
