@@ -76,6 +76,19 @@
   body.desk .tb .k { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 6px; background: rgba(59, 42, 61, .12); }
   body.hidectl #touch { display: none; }
   @media (max-height: 460px) { .tb { width: 64px; height: 64px; font-size: 12px; } .tb.big { width: 80px; height: 80px; } #bAct { width: 136px; height: 54px; } .tb svg { width: 26px; height: 26px; } }
+  @media (max-width: 560px) {
+    #touch { gap: 6px; padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+    .pad { gap: 8px; }
+    .pad-r { gap: 8px; }
+    .tb { width: 56px; height: 56px; font-size: 11px; padding: 2px; }
+    .tb svg { width: 22px; height: 22px; }
+    .tb.big { width: 66px; height: 66px; }
+    #bJump { width: 70px; height: 70px; }
+    #bAct { width: 120px; height: 50px; }
+  }
+  @media (max-width: 350px) {
+    .tb { width: 50px; height: 50px; } .tb.big { width: 58px; height: 58px; } #bJump { width: 62px; height: 62px; } #bAct { width: 108px; }
+  }
   #rotate { position: fixed; left: 50%; transform: translateX(-50%); bottom: 250px; z-index: 5; display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 16px; background: rgba(255, 247, 238, .92); color: var(--ink); font-weight: 700; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 4px 18px rgba(0,0,0,.3); }
   #rotate button { border: 0; background: var(--panel-2); color: var(--ink); border-radius: 10px; padding: 6px 10px; font-weight: 800; cursor: pointer; }
   @media (orientation: landscape) { #rotate { display: none; } }
