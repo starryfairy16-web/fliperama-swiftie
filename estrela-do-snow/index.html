@@ -67,8 +67,9 @@
   #bSniff { grid-column: 2; grid-row: 1; }
   #bAct { grid-column: 1 / span 2; grid-row: 2; width: 150px; border-radius: 40px; height: 62px; }
   .tb .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-  body.desk .pad-l, body.desk #bJump { display: none; }
-  body.desk .pad-r { grid-template-columns: auto auto auto; grid-template-rows: auto; }
+  body.desk .tb.big { width: 64px; height: 64px; }
+  body.desk .pad-r { grid-template-columns: auto auto auto auto; grid-template-rows: auto; align-items: center; }
+  body.desk #bJump { grid-column: 4; grid-row: 1; width: auto; min-width: 110px; height: 50px; border-radius: 26px; display: flex; gap: 6px; padding: 0 16px; font-size: 14px; }
   body.desk #bPet, body.desk #bSniff, body.desk #bAct { grid-row: 1; width: auto; min-width: 110px; height: 50px; border-radius: 26px; display: flex; gap: 6px; padding: 0 16px; font-size: 14px; }
   body.desk #bPet { grid-column: 1; } body.desk #bSniff { grid-column: 2; } body.desk #bAct { grid-column: 3; min-width: 150px; }
   body.desk .tb svg { width: 22px; height: 22px; margin: 0; }
@@ -158,7 +159,7 @@
     <button class="tb pet" id="bPet" data-act="pet" aria-label="Fazer carinho no Snow"><svg viewBox="0 0 24 24" fill="#e0567a"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2.2 0 3.6 1.3 5.3 3.2 1.7-1.9 3.1-3.2 5.3-3.2 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg><span class="lbl">Carinho</span><span class="k">C</span></button>
     <button class="tb" id="bSniff" data-act="sniff" aria-label="Pedir para o Snow farejar"><svg viewBox="0 0 24 24" fill="currentColor"><ellipse cx="12" cy="16" rx="4.6" ry="3.8"/><circle cx="5.6" cy="10.4" r="2.2"/><circle cx="9.4" cy="6.6" r="2.2"/><circle cx="14.6" cy="6.6" r="2.2"/><circle cx="18.4" cy="10.4" r="2.2"/></svg><span class="lbl">Farejar</span><span class="k">F</span></button>
     <button class="tb act" id="bAct" data-act="act" aria-label="Ação"><span class="lbl" id="actLbl">Ação</span><span class="k">E</span></button>
-    <button class="tb big" id="bJump" data-hold="jump" aria-label="Pular"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5 4 12h5v8h6v-8h5z"/></svg><span class="lbl">Pular</span></button>
+    <button class="tb big" id="bJump" data-hold="jump" aria-label="Pular"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5 4 12h5v8h6v-8h5z"/></svg><span class="lbl">Pular</span><span class="k">Espaço</span></button>
   </div>
 </div>
 
